@@ -450,7 +450,7 @@ class _InventoryTabState extends ConsumerState<_InventoryTab> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 loading: () => const Text('ความจุคลัง: ...'),
-                error: (_, __) => const Text('ความจุคลัง: -'),
+                error: (_, _) => const Text('ความจุคลัง: -'),
               ),
             ),
             TextButton.icon(

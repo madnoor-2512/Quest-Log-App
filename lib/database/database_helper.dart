@@ -331,8 +331,9 @@ class DatabaseHelper {
       whereArgs: [questId],
     );
     final updated = await getQuestById(questId);
-    if (updated == null)
+    if (updated == null) {
       throw StateError('Quest $questId not found after completing.');
+    }
     return updated;
   }
 
