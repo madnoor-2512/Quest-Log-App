@@ -1,0 +1,26 @@
+name: quest_log
+description: "Quest Log — RPG-style habit & task manager"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.6.1
+  sqflite: ^2.4.2
+  path: ^1.9.1
+  crypto: ^3.0.6
+  http: ^1.3.0
+  google_fonts: ^6.2.1
+  shared_preferences: ^2.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
