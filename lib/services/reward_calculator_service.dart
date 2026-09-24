@@ -120,6 +120,11 @@ class RewardCalculatorService {
     return (exp * (1 + GamificationConfig.rpgClassExpBonus)).round();
   }
 
+  int applyConcurrentBonus({required int reward, required bool isConcurrent}) {
+    if (!isConcurrent) return reward;
+    return (reward * (1 + GamificationConfig.concurrentQuestBonus)).round();
+  }
+
   DailyCapResult applyDailyCap({
     required int proposedExp,
     required int proposedGold,
@@ -152,6 +157,7 @@ class RewardCalculatorService {
     required int alreadyEarnedExpToday,
     required int alreadyEarnedGoldToday,
     bool hasRpgClass = false,
+    bool isConcurrent = false,
   }) {
     final streakAdj = applyStreakMultiplier(
       baseExp: baseExp,
@@ -162,9 +168,17 @@ class RewardCalculatorService {
       exp: streakAdj.exp,
       hasRpgClass: hasRpgClass,
     );
+    final expWithConcurrentBonus = applyConcurrentBonus(
+      reward: expWithClassBonus,
+      isConcurrent: isConcurrent,
+    );
+    final goldWithConcurrentBonus = applyConcurrentBonus(
+      reward: streakAdj.gold,
+      isConcurrent: isConcurrent,
+    );
     return applyDailyCap(
-      proposedExp: expWithClassBonus,
-      proposedGold: streakAdj.gold,
+      proposedExp: expWithConcurrentBonus,
+      proposedGold: goldWithConcurrentBonus,
       alreadyEarnedExpToday: alreadyEarnedExpToday,
       alreadyEarnedGoldToday: alreadyEarnedGoldToday,
     );

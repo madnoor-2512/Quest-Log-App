@@ -48,6 +48,9 @@ class GamificationConfig {
   // RPG Class — โบนัส EXP จริงเมื่อเลือกสายแล้ว (เท่ากันทุกสาย)
   static const double rpgClassExpBonus = 0.15; // +15%
 
+  // Concurrent focus — โบนัสเมื่อจัดการเควสต์ที่ทำพร้อมกันสำเร็จ
+  static const double concurrentQuestBonus = 0.10; // +10%
+
   // Inventory — ขยายช่องคลังไอเทมด้วย Gold
   static const int inventoryExpandCost = 150; // Gold ต่อครั้ง
   static const int inventoryExpandAmount = 5; // +5 ช่องต่อครั้ง

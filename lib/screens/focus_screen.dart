@@ -89,6 +89,30 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   }
 
   Future<void> _endSession() async {
+    final session = ref.read(activeFocusSessionProvider).valueOrNull;
+    final timeUp = _totalSeconds > 0 && _secondsRemaining <= 0;
+    if (!timeUp && session != null) {
+      final shouldStop = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('ยกเลิก Focus Session?'),
+          content: const Text(
+            'ถ้าจบก่อนหมดเวลา เควสต์ใน session นี้จะไม่ได้รับรางวัลใดๆ',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('ทำต่อ'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('ยกเลิก Session'),
+            ),
+          ],
+        ),
+      );
+      if (shouldStop != true) return;
+    }
     _timer?.cancel();
     _timer = null;
     _trackedSessionId = null;
@@ -129,9 +153,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   }
 
   Future<void> _completeSessionQuest(QuestModel quest) async {
+    final sessionQuests = await ref.read(activeSessionQuestsProvider.future);
     final result = await ref
         .read(questActionsProvider.notifier)
-        .completeQuest(quest.id!);
+        .completeQuest(
+          quest.id!,
+          isConcurrent: sessionQuests.length > 1,
+        );
     final settings = ref.read(settingsProvider).valueOrNull;
     if (settings?.soundEnabled ?? true) {
       await SystemSound.play(SystemSoundType.click);
@@ -199,7 +227,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'เลือกได้หลายเควส — ระบบจะกันเควสที่ทำพร้อมกันไม่ได้ให้อัตโนมัติ',
+            'เลือกเควสหลัก แล้วกดเพิ่มเควสที่ทำควบคู่ได้ ระบบจะกันคู่ที่ขัดแย้งให้อัตโนมัติ',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
@@ -219,7 +247,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 return ListView.builder(
                   itemCount: quests.length,
                   itemBuilder: (context, index) {
-                    final q = quests[index];
+                    final q = quests[index - 1];
                     final isSelected = selected.any((sq) => sq.id == q.id);
                     final isDisabled = !isSelected && blocked.contains(q.id);
                     return GestureDetector(
@@ -266,7 +294,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                   ),
                   const SizedBox(height: 8),
                   RpgButton(
-                    text: 'Start Focus',
+                    text: selected.length > 1
+                      ? 'Start Concurrent Focus'
+                      : 'Start Focus',
                     backgroundColor: AppColors.primary,
                     borderColor: AppColors.primaryDark,
                     width: double.infinity,
@@ -359,13 +389,64 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 if (quests.isEmpty) {
                   return const Center(child: Text('ไม่มีเควสในเซสชันนี้'));
                 }
+                final completedCount =
+                    quests.where((quest) => quest.isCompleted).length;
+                final progress = completedCount / quests.length;
                 return ListView.builder(
-                  itemCount: quests.length,
+                  itemCount: quests.length + 1,
                   itemBuilder: (context, index) {
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  quests.length > 1
+                                      ? 'Concurrent Quests'
+                                      : 'Focus Quest',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '$completedCount/${quests.length} สำเร็จ',
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(8),
+                              backgroundColor: AppColors.border,
+                              color: AppColors.secondary,
+                            ),
+                            if (!timeUp)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'เควสต์จะกดสำเร็จได้เมื่อหมดเวลา',
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }
                     final q = quests[index];
                     return QuestCard(
                       quest: q,
-                      onComplete: q.isCompleted
+                      onComplete: q.isCompleted || !timeUp
                           ? null
                           : () => _completeSessionQuest(q),
                     );

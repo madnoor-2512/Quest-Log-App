@@ -112,7 +112,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
   Future<
     ({int exp, int gold, bool wasCapped, List<AchievementDef> newAchievements})
   >
-  completeQuest(int questId) async {
+  completeQuest(int questId, {bool isConcurrent = false}) async {
     final db = ref.read(databaseHelperProvider);
     final calculator = ref.read(rewardCalculatorProvider);
 
@@ -140,6 +140,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       alreadyEarnedExpToday: todayTotals['exp'] ?? 0,
       alreadyEarnedGoldToday: todayTotals['gold'] ?? 0,
       hasRpgClass: user?.rpgClass != null,
+      isConcurrent: isConcurrent,
     );
 
     if (user == null) {
