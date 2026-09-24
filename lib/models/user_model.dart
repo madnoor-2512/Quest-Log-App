@@ -100,6 +100,25 @@ class UserModel {
   int get streakDays => streakCount;
   String? get lastLoginDate => lastActiveDate;
 
+  UserModel withRewards({required int exp, required int gold}) {
+    var nextExp = currentExp + exp;
+    var nextLevel = level;
+    var nextMaxExp = maxExp;
+
+    while (nextExp >= nextMaxExp) {
+      nextExp -= nextMaxExp;
+      nextLevel += 1;
+      nextMaxExp = (nextMaxExp * 1.2).round();
+    }
+
+    return copyWith(
+      level: nextLevel,
+      currentExp: nextExp,
+      maxExp: nextMaxExp,
+      gold: this.gold + gold,
+    );
+  }
+
   /// สร้าง object ใหม่จาก object เดิม พร้อมค่าที่เปลี่ยนแปลง
   ///
   /// หมายเหตุ [clearRpgClass]: เพราะ [rpgClass] เป็น nullable และ
@@ -119,6 +138,8 @@ class UserModel {
     String? username,
     String? motto,
     RpgClassPath? rpgClass,
+    bool clearUsername = false,
+    bool clearMotto = false,
     bool clearRpgClass = false,
   }) {
     return UserModel(
@@ -132,8 +153,8 @@ class UserModel {
       lastActiveDate: lastActiveDate ?? this.lastActiveDate,
       avatarIndex: avatarIndex ?? this.avatarIndex,
       inventoryCapacity: inventoryCapacity ?? this.inventoryCapacity,
-      username: username ?? this.username,
-      motto: motto ?? this.motto,
+      username: clearUsername ? null : (username ?? this.username),
+      motto: clearMotto ? null : (motto ?? this.motto),
       rpgClass: clearRpgClass ? null : (rpgClass ?? this.rpgClass),
     );
   }

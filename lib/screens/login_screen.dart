@@ -74,9 +74,22 @@ class LoginScreen extends ConsumerWidget {
                   icon: Icons.play_arrow_rounded,
                   backgroundColor: AppColors.secondary,
                   borderColor: AppColors.secondaryDark,
-                  onPressed: () {
+                  onPressed: () async {
                     final user = userAsync.valueOrNull;
                     if (user != null) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (_) => const DashboardScreen(),
+                        ),
+                      );
+                      return;
+                    }
+
+                    final restoredUser = await ref
+                        .read(userProvider.notifier)
+                        .resumeLocalUser();
+                    if (!context.mounted) return;
+                    if (restoredUser != null) {
                       Navigator.of(context).pushReplacement(
                         MaterialPageRoute(
                           builder: (_) => const DashboardScreen(),

@@ -381,6 +381,55 @@ class DatabaseHelper {
     return updated;
   }
 
+  Future<QuestModel> completeQuestAndUpdateUser({
+    required int questId,
+    required int awardedExp,
+    required int awardedGold,
+    required UserModel updatedUser,
+    String? completedAt,
+  }) async {
+    assert(updatedUser.id != null, 'UserModel.id must not be null');
+    final db = await database;
+    final timestamp = completedAt ?? DateTime.now().toIso8601String();
+
+    return db.transaction<QuestModel>((txn) async {
+      final updatedRows = await txn.update(
+        tableQuests,
+        {
+          'is_completed': 1,
+          'completed_at': timestamp,
+          'awarded_exp': awardedExp,
+          'awarded_gold': awardedGold,
+        },
+        where: 'id = ? AND is_completed = 0',
+        whereArgs: [questId],
+      );
+      if (updatedRows == 0) {
+        throw StateError('Quest $questId is already completed or does not exist.');
+      }
+
+      final updatedUserRows = await txn.update(
+        tableUsers,
+        updatedUser.toMap(),
+        where: 'id = ?',
+        whereArgs: [updatedUser.id],
+      );
+      if (updatedUserRows == 0) {
+        throw StateError('User ${updatedUser.id} not found while awarding rewards.');
+      }
+
+      final maps = await txn.query(
+        tableQuests,
+        where: 'id = ?',
+        whereArgs: [questId],
+      );
+      if (maps.isEmpty) {
+        throw StateError('Quest $questId not found after completing.');
+      }
+      return QuestModel.fromMap(maps.first);
+    });
+  }
+
   Future<int> deleteQuest(int id) async {
     final db = await database;
     return await db.delete(tableQuests, where: 'id = ?', whereArgs: [id]);
@@ -436,6 +485,15 @@ class DatabaseHelper {
   }) async {
     final db = await database;
     return await db.transaction<int>((txn) async {
+      final activeSessions = await txn.query(
+        tableFocusSessions,
+        columns: ['id'],
+        orderBy: 'id DESC',
+        limit: 1,
+      );
+      if (activeSessions.isNotEmpty) {
+        return activeSessions.first['id'] as int;
+      }
       final sessionId = await txn.insert(tableFocusSessions, {
         'started_at': startedAt,
         'target_duration': targetDuration,

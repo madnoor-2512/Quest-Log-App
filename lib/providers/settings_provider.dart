@@ -71,6 +71,12 @@ class SettingsNotifier extends AsyncNotifier<SettingsState> {
     await prefs.setBool(_keyDarkTheme, s.isDarkTheme);
   }
 
+  Future<void> resetToDefaults() async {
+    const defaults = SettingsState();
+    state = const AsyncValue.data(defaults);
+    await _save(defaults);
+  }
+
   Future<void> toggleSound() async {
     final s = state.valueOrNull ?? const SettingsState();
     final n = s.copyWith(soundEnabled: !s.soundEnabled);

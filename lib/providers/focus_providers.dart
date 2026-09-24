@@ -82,13 +82,15 @@ class ActiveFocusSessionNotifier extends AsyncNotifier<FocusSessionModel?> {
       questIds: selected.map((q) => q.id!).toList(),
     );
 
+    final activeSession = await db.getActiveFocusSession();
     ref.read(focusSelectionProvider.notifier).clear();
     state = AsyncValue.data(
-      FocusSessionModel(
-        id: sessionId,
-        startedAt: startedAt,
-        targetDuration: finalDurationSeconds,
-      ),
+      activeSession ??
+          FocusSessionModel(
+            id: sessionId,
+            startedAt: startedAt,
+            targetDuration: finalDurationSeconds,
+          ),
     );
     ref.invalidate(activeSessionQuestsProvider);
   }

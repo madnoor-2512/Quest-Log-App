@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 import 'core_providers.dart';
@@ -8,10 +9,29 @@ final userProvider = AsyncNotifierProvider<UserNotifier, UserModel?>(
 );
 
 class UserNotifier extends AsyncNotifier<UserModel?> {
+  static const _loggedInKey = 'local_user_logged_in';
+
   @override
   Future<UserModel?> build() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_loggedInKey) == false) return null;
     final db = ref.read(databaseHelperProvider);
     return db.getCurrentUser();
+  }
+
+  Future<UserModel?> resumeLocalUser() async {
+    final user = await ref.read(databaseHelperProvider).getCurrentUser();
+    if (user == null) return null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_loggedInKey, true);
+    state = AsyncValue.data(user);
+    return user;
+  }
+
+  Future<void> activateLocalUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_loggedInKey, true);
+    await refresh();
   }
 
   Future<void> refresh() async {
@@ -85,6 +105,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     String? username,
     String? motto,
     RpgClassPath? rpgClass,
+    bool clearUsername = false,
+    bool clearMotto = false,
     bool clearRpgClass = false,
   }) async {
     final current = state.valueOrNull;
@@ -95,6 +117,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
       username: username,
       motto: motto,
       rpgClass: rpgClass,
+      clearUsername: clearUsername,
+      clearMotto: clearMotto,
       clearRpgClass: clearRpgClass,
     );
     await ref.read(databaseHelperProvider).updateUser(updated);
@@ -102,7 +126,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
   }
 
   Future<void> logout() async {
-    await ref.read(databaseHelperProvider).clearLocalUserData();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_loggedInKey, false);
     state = const AsyncValue.data(null);
   }
 

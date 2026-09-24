@@ -48,7 +48,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       _trackedSessionId = null;
       return;
     }
-    if (_trackedSessionId == session.id && _timer != null) return;
+    if (_trackedSessionId == session.id && _timer != null) {
+      if (_totalSeconds != session.targetDuration) {
+        _startLocalTicker(session);
+      }
+      return;
+    }
     _trackedSessionId = session.id;
     _startLocalTicker(session);
   }

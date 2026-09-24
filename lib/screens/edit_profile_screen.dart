@@ -66,6 +66,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           motto: _mottoController.text.trim().isEmpty
               ? null
               : _mottoController.text.trim(),
+            clearUsername: _usernameController.text.trim().isEmpty,
+            clearMotto: _mottoController.text.trim().isEmpty,
           rpgClass: _selectedClass,
         );
 
