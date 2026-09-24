@@ -31,6 +31,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   int _secondsRemaining = 0;
   final ValueNotifier<double> _smoothProgressNotifier =
       ValueNotifier<double>(0.0);
+  bool _autoCompletingSession = false;
+  bool _completingDueQuests = false;
 
   @override
   void dispose() {
@@ -67,16 +69,11 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     final totalMs = _totalSeconds * 1000;
 
     void tick() {
-      final now = DateTime.now();
-      final elapsedMs = now.difference(startedAt).inMilliseconds;
-      final remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
-      final remainingSec = (remainingMs / 1000).ceil();
-      final progress =
-          totalMs > 0 ? (remainingMs / totalMs).clamp(0.0, 1.0) : 0.0;
-
-      _smoothProgressNotifier.value = progress;
-      if (_secondsRemaining != remainingSec && mounted) {
-        setState(() => _secondsRemaining = remainingSec);
+      final elapsed = DateTime.now().difference(startedAt).inSeconds;
+      final remaining = (_totalSeconds - elapsed).clamp(0, _totalSeconds);
+      if (mounted) setState(() => _secondsRemaining = remaining);
+      if (!_autoCompletingSession && !_completingDueQuests) {
+        unawaited(_completeDueQuests(session, elapsed));
       }
     }
 
@@ -104,6 +101,10 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   Future<void> _endSession() async {
     final session = ref.read(activeFocusSessionProvider).valueOrNull;
     final timeUp = _totalSeconds > 0 && _secondsRemaining <= 0;
+    if (timeUp) {
+      await _completeSessionWhenTimeUp(session);
+      return;
+    }
     if (!timeUp && session != null) {
       final shouldStop = await showDialog<bool>(
         context: context,
@@ -131,6 +132,91 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     _trackedSessionId = null;
     _smoothProgressNotifier.value = 0.0;
     await ref.read(activeFocusSessionProvider.notifier).end();
+  }
+
+  Future<void> _completeSessionWhenTimeUp(FocusSessionModel? session) async {
+    if (_autoCompletingSession || session?.id == null) return;
+    _autoCompletingSession = true;
+    _timer?.cancel();
+    _timer = null;
+
+    try {
+      final quests = await ref.read(activeSessionQuestsProvider.future);
+      final pendingQuests = quests.where((quest) => !quest.isCompleted).toList();
+      final isConcurrent = quests.length > 1;
+      var totalExp = 0;
+      var totalGold = 0;
+
+      for (final quest in pendingQuests) {
+        final result = await ref
+            .read(questActionsProvider.notifier)
+            .completeQuest(quest.id!, isConcurrent: isConcurrent);
+        totalExp += result.exp;
+        totalGold += result.gold;
+      }
+
+      await ref.read(activeFocusSessionProvider.notifier).end();
+      _trackedSessionId = null;
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            pendingQuests.isEmpty
+                ? 'เซสชันเสร็จสิ้น เควสต์ทั้งหมดสำเร็จแล้ว'
+                : 'หมดเวลาแล้ว! สำเร็จ ${pendingQuests.length} เควสต์ '
+                      'ได้รับ +$totalExp EXP, +$totalGold Gold',
+          ),
+          backgroundColor: AppColors.primaryDark,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('จบเควสต์อัตโนมัติไม่สำเร็จ: $error'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      _autoCompletingSession = false;
+    }
+  }
+
+  Future<void> _completeDueQuests(
+    FocusSessionModel session,
+    int elapsedSeconds,
+  ) async {
+    if (_completingDueQuests || session.id == null) return;
+    _completingDueQuests = true;
+    try {
+      final quests = await ref.read(activeSessionQuestsProvider.future);
+      final pendingQuests = quests.where((quest) {
+        final duration = quest.estimatedMinutes > 0
+            ? quest.estimatedMinutes * 60
+            : session.targetDuration;
+        return !quest.isCompleted && elapsedSeconds >= duration;
+      }).toList();
+      if (pendingQuests.isEmpty) return;
+
+      final isConcurrent = quests.length > 1;
+      for (final quest in pendingQuests) {
+        await ref
+            .read(questActionsProvider.notifier)
+            .completeQuest(quest.id!, isConcurrent: isConcurrent);
+      }
+      ref.invalidate(activeSessionQuestsProvider);
+
+      final remainingQuests = await ref.read(activeSessionQuestsProvider.future);
+      if (remainingQuests.every((quest) => quest.isCompleted)) {
+        await ref.read(activeFocusSessionProvider.notifier).end();
+        _timer?.cancel();
+        _timer = null;
+        _trackedSessionId = null;
+      }
+    } finally {
+      _completingDueQuests = false;
+    }
   }
 
   void _onQuestTap(
@@ -297,16 +383,20 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           const SizedBox(height: 12),
           Builder(
             builder: (context) {
-              // จับเวลาตามเควสที่เลือกจริง (รวม estimated_minutes ของทุกเควส
-              // ที่เลือกไว้) แทนที่จะให้ผู้ใช้เลือก preset 25/50 นาทีเอง —
+              // session ใช้เวลาของเควสต์ที่นานที่สุด ส่วนแต่ละเควสต์จะจบ
+              // ตาม estimated_minutes ของตัวเอง — เช่น 30 + 10 นาที
+              // พอดแคสต์จะจบก่อน ส่วนเควสต์วิ่งจะทำต่อ
               // ถ้าเควสที่เลือกไม่มีเวลาระบุไว้เลย (estimated_minutes รวม
               // เป็น 0) ใช้ 5 นาทีเป็นขั้นต่ำกันไม่ให้ session เริ่มด้วย
               // เวลา 0 วินาที
-              final totalMinutes = selected.fold<int>(
+              final longestMinutes = selected.fold<int>(
                 0,
-                (sum, q) => sum + q.estimatedMinutes,
+                (longest, q) =>
+                    q.estimatedMinutes > longest ? q.estimatedMinutes : longest,
               );
-              final effectiveMinutes = totalMinutes > 0 ? totalMinutes : 5;
+              final effectiveMinutes = longestMinutes > 0
+                  ? longestMinutes
+                  : 5;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,8 +405,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                     selected.isEmpty
                         ? 'ยังไม่ได้เลือกเควส'
                         : 'เลือกแล้ว ${selected.length} เควส • '
-                              'รวมเวลาโฟกัส $effectiveMinutes นาที'
-                              '${totalMinutes == 0 ? ' (ค่าเริ่มต้น)' : ''}',
+                              'นานสุด $effectiveMinutes นาที'
+                              '${longestMinutes == 0 ? ' (ค่าเริ่มต้น)' : ''}',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       color: AppColors.textSecondary,
@@ -361,10 +451,10 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           ),
           const SizedBox(height: 20),
           RpgButton(
-            text: 'จบเซสชัน',
+            text: _autoCompletingSession ? 'กำลังสรุปผล...' : 'จบเซสชัน',
             backgroundColor: AppColors.error,
             borderColor: AppColors.primaryDark,
-            onPressed: _endSession,
+            onPressed: _autoCompletingSession ? null : _endSession,
           ),
           const SizedBox(height: 20),
           const Divider(color: AppColors.border),
@@ -440,13 +530,10 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                       );
                     }
                     final q = quests[index - 1];
-                    final elapsedSeconds = DateTime.now()
-                        .difference(DateTime.parse(session.startedAt))
-                        .inSeconds
-                        .clamp(0, session.targetDuration);
-                    final questProgress = session.targetDuration == 0
-                        ? 0.0
-                        : elapsedSeconds / session.targetDuration;
+                    final elapsedSeconds = _totalSeconds - _secondsRemaining;
+                    final questProgress = q.isCompleted
+                      ? 1.0
+                      : _questProgress(q, elapsedSeconds, session);
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -510,9 +597,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     FocusSessionModel session,
     List<QuestModel> quests,
   ) {
-    final sessionProgress = _totalSeconds == 0
-        ? 0.0
-        : _secondsRemaining / _totalSeconds;
+    final elapsedSeconds = _totalSeconds - _secondsRemaining;
     final isConcurrent = quests.length > 1;
     final ringColors = [
       AppColors.secondary,
@@ -553,7 +638,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 child: CircularProgressIndicator(
                   value: quests.isEmpty || quests[index].isCompleted
                       ? 1
-                      : sessionProgress,
+                      : _questProgress(quests[index], elapsedSeconds, session),
                   strokeWidth: index == 0 ? 10 : 7,
                   backgroundColor: AppColors.borderLight,
                   color: ringColors[index],
@@ -587,5 +672,17 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         ),
       ],
     );
+  }
+
+  double _questProgress(
+    QuestModel quest,
+    int elapsedSeconds,
+    FocusSessionModel session,
+  ) {
+    final durationSeconds = quest.estimatedMinutes > 0
+        ? quest.estimatedMinutes * 60
+        : session.targetDuration;
+    if (durationSeconds <= 0) return 1;
+    return (elapsedSeconds / durationSeconds).clamp(0.0, 1.0);
   }
 }
