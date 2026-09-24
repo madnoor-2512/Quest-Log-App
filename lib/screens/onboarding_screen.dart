@@ -209,7 +209,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         Expanded(
                           child: ListView.separated(
                             itemCount: _interestOptions.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, _) =>
                                 const SizedBox(height: 10),
                             itemBuilder: (context, index) {
                               final isSelected = _selectedInterests.contains(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/focus_session_model.dart';
@@ -7,6 +8,7 @@ import '../models/quest_model.dart';
 import '../providers/core_providers.dart';
 import '../providers/focus_providers.dart';
 import '../providers/quest_providers.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/quest_card.dart';
 import '../widgets/rpg_button.dart';
@@ -125,6 +127,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     final result = await ref
         .read(questActionsProvider.notifier)
         .completeQuest(quest.id!);
+    final settings = ref.read(settingsProvider).valueOrNull;
+    if (settings?.soundEnabled ?? true) {
+      await SystemSound.play(SystemSoundType.click);
+    }
+    if (settings?.vibrationEnabled ?? true) {
+      await HapticFeedback.mediumImpact();
+    }
     // activeSessionQuestsProvider ไม่ได้ผูกกับ questListProvider ที่ถูก
     // invalidate อัตโนมัติใน completeQuest() จึงต้อง invalidate เองตรงนี้
     ref.invalidate(activeSessionQuestsProvider);

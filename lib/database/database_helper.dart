@@ -6,6 +6,7 @@ import '../models/quest_model.dart';
 import '../models/sub_task_model.dart';
 import '../models/focus_session_model.dart';
 import '../models/reward_model.dart';
+import '../models/achievement_model.dart';
 
 /// DatabaseHelper — Singleton จัดการ SQLite database ทั้งหมดของแอป Quest Log
 class DatabaseHelper {
@@ -15,7 +16,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 4;
+  static const int dbVersion = 5;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -25,6 +26,7 @@ class DatabaseHelper {
   static const String tableRewards = 'rewards';
   static const String tableRedemptions = 'redemptions';
   static const String tableInventoryItems = 'inventory_items';
+  static const String tableUnlockedAchievements = 'unlocked_achievements';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -93,6 +95,19 @@ class DatabaseHelper {
         );
       ''');
     }
+    if (oldVersion < 5) {
+      // โปรไฟล์ผู้เล่นเพิ่ม username/motto/rpg_class + ระบบ Achievements
+      await db.execute('ALTER TABLE $tableUsers ADD COLUMN username TEXT;');
+      await db.execute('ALTER TABLE $tableUsers ADD COLUMN motto TEXT;');
+      await db.execute('ALTER TABLE $tableUsers ADD COLUMN rpg_class TEXT;');
+      await db.execute('''
+        CREATE TABLE $tableUnlockedAchievements (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          code TEXT NOT NULL UNIQUE,
+          unlocked_at TEXT NOT NULL
+        );
+      ''');
+    }
   }
 
   Future<void> _onConfigure(Database db) async {
@@ -113,7 +128,10 @@ class DatabaseHelper {
         streak_count INTEGER NOT NULL DEFAULT 0,
         last_active_date TEXT,
         avatar_index INTEGER NOT NULL DEFAULT 0,
-        inventory_capacity INTEGER NOT NULL DEFAULT 20
+        inventory_capacity INTEGER NOT NULL DEFAULT 20,
+        username TEXT,
+        motto TEXT,
+        rpg_class TEXT
       );
     ''');
 
@@ -200,6 +218,14 @@ class DatabaseHelper {
       );
     ''');
 
+    batch.execute('''
+      CREATE TABLE $tableUnlockedAchievements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code TEXT NOT NULL UNIQUE,
+        unlocked_at TEXT NOT NULL
+      );
+    ''');
+
     batch.execute(
       'CREATE INDEX idx_quests_category ON $tableQuests (category);',
     );
@@ -250,6 +276,21 @@ class DatabaseHelper {
   Future<int> deleteUser(int id) async {
     final db = await database;
     return await db.delete(tableUsers, where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> clearLocalUserData() async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.delete(tableInventoryItems);
+      await txn.delete(tableRedemptions);
+      await txn.delete(tableUnlockedAchievements);
+      await txn.delete(tableSessionQuests);
+      await txn.delete(tableFocusSessions);
+      await txn.delete(tableSubTasks);
+      await txn.delete(tableQuests);
+      await txn.delete(tableRewards);
+      await txn.delete(tableUsers);
+    });
   }
 
   // -----------------------------------------------------------------------
@@ -319,7 +360,7 @@ class DatabaseHelper {
   }) async {
     final db = await database;
     final timestamp = completedAt ?? DateTime.now().toIso8601String();
-    await db.update(
+    final updatedRows = await db.update(
       tableQuests,
       {
         'is_completed': 1,
@@ -327,12 +368,16 @@ class DatabaseHelper {
         'awarded_exp': awardedExp,
         'awarded_gold': awardedGold,
       },
-      where: 'id = ?',
+      where: 'id = ? AND is_completed = 0',
       whereArgs: [questId],
     );
+    if (updatedRows == 0) {
+      throw StateError('Quest $questId is already completed or does not exist.');
+    }
     final updated = await getQuestById(questId);
-    if (updated == null)
+    if (updated == null) {
       throw StateError('Quest $questId not found after completing.');
+    }
     return updated;
   }
 
@@ -710,6 +755,45 @@ class DatabaseHelper {
       INNER JOIN $tableRewards rw ON rw.id = r.reward_id
       ORDER BY r.redeemed_at DESC
     ''');
+  }
+
+  // -----------------------------------------------------------------------
+  // ACHIEVEMENTS
+  // -----------------------------------------------------------------------
+
+  Future<Set<String>> getUnlockedAchievementCodes() async {
+    final db = await database;
+    final maps = await db.query(tableUnlockedAchievements);
+    return maps.map((m) => m['code'] as String).toSet();
+  }
+
+  /// ปลดล็อก achievement — ใช้ INSERT OR IGNORE กัน error ตอนเรียกซ้ำ
+  /// (เช่นเช็คเงื่อนไขผ่านซ้ำหลายรอบ) เพราะ code มี UNIQUE constraint อยู่
+  Future<void> unlockAchievement(String code) async {
+    final db = await database;
+    await db.insert(tableUnlockedAchievements, {
+      'code': code,
+      'unlocked_at': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+  }
+
+  Future<List<UnlockedAchievementModel>> getUnlockedAchievements() async {
+    final db = await database;
+    final maps = await db.query(
+      tableUnlockedAchievements,
+      orderBy: 'unlocked_at DESC',
+    );
+    return maps.map((m) => UnlockedAchievementModel.fromMap(m)).toList();
+  }
+
+  /// จำนวนเควสที่ทำสำเร็จสะสมทั้งหมด (ไม่ใช่แค่วันนี้) — ใช้เช็คเงื่อนไข
+  /// achievement ประเภท questsCompleted
+  Future<int> getCompletedQuestsCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS c FROM $tableQuests WHERE is_completed = 1',
+    );
+    return (result.first['c'] as int?) ?? 0;
   }
 
   // -----------------------------------------------------------------------

@@ -223,41 +223,6 @@ class RewardModel {
       'RewardModel(id: $id, title: $title, goldCost: $goldCost, category: ${itemCategory.dbValue})';
 }
 
-/// redemptions — ประวัติการแลกของรางวัล (เก็บไว้เป็น audit log เบื้องหลัง
-/// ไม่มีแท็บแยกแสดงแล้ว เพราะข้อมูล "เป็นเจ้าของอะไรบ้าง" ย้ายไปโชว์ผ่าน
-/// คลังไอเทม (inventory_items) แทน)
-class RedemptionModel {
-  final int? id;
-  final int rewardId;
-  final String redeemedAt; // ISO8601
-
-  const RedemptionModel({
-    this.id,
-    required this.rewardId,
-    required this.redeemedAt,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      if (id != null) 'id': id,
-      'reward_id': rewardId,
-      'redeemed_at': redeemedAt,
-    };
-  }
-
-  factory RedemptionModel.fromMap(Map<String, dynamic> map) {
-    return RedemptionModel(
-      id: map['id'] as int?,
-      rewardId: map['reward_id'] as int,
-      redeemedAt: map['redeemed_at'] as String,
-    );
-  }
-
-  @override
-  String toString() =>
-      'RedemptionModel(id: $id, rewardId: $rewardId, redeemedAt: $redeemedAt)';
-}
-
 /// ผลลัพธ์ของการแลกของรางวัล — แยกเหตุผลที่แลกไม่สำเร็จให้ชัดเจน แทนที่
 /// จะคืนแค่ bool เหมือนเดิม เพราะตอนนี้มีเหตุผลได้ 2 แบบ (Gold ไม่พอ /
 /// คลังเต็ม) ที่ผู้ใช้ควรเห็นข้อความต่างกัน

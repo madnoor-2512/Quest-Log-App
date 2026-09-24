@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/focus_providers.dart';
 import '../providers/quest_providers.dart';
+import '../providers/settings_provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_avatars.dart';
 import '../theme/app_colors.dart';
@@ -307,6 +309,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   final result = await ref
                       .read(questActionsProvider.notifier)
                       .completeQuest(quest.id!);
+                  final settings = ref.read(settingsProvider).valueOrNull;
+                  if (settings?.soundEnabled ?? true) {
+                    await SystemSound.play(SystemSoundType.click);
+                  }
+                  if (settings?.vibrationEnabled ?? true) {
+                    await HapticFeedback.mediumImpact();
+                  }
                   if (!context.mounted) return;
                   final capNote = result.wasCapped
                       ? ' (ถึงเพดานรางวัลวันนี้แล้ว ได้น้อยกว่าปกติ)'

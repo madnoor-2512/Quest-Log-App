@@ -10,8 +10,20 @@ import '../theme/app_colors.dart';
 import '../widgets/rpg_button.dart';
 import 'add_reward_screen.dart';
 
+Color _rarityColor(ItemRarity rarity) {
+  switch (rarity) {
+    case ItemRarity.epic:
+      return const Color(0xFF7C3AED);
+    case ItemRarity.rare:
+      return const Color(0xFF3B82F6);
+    case ItemRarity.common:
+      return AppColors.textMuted;
+  }
+}
+
 class RewardsScreen extends ConsumerWidget {
-  const RewardsScreen({super.key});
+  final int initialTabIndex;
+  const RewardsScreen({super.key, this.initialTabIndex = 0});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,6 +32,7 @@ class RewardsScreen extends ConsumerWidget {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: initialTabIndex,
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
@@ -123,17 +136,6 @@ class RewardsScreen extends ConsumerWidget {
 class _ShopTab extends ConsumerWidget {
   final UserModel? user;
   const _ShopTab({required this.user});
-
-  Color _rarityColor(ItemRarity rarity) {
-    switch (rarity) {
-      case ItemRarity.epic:
-        return const Color(0xFF7C3AED);
-      case ItemRarity.rare:
-        return const Color(0xFF3B82F6);
-      case ItemRarity.common:
-        return AppColors.textMuted;
-    }
-  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -361,17 +363,6 @@ class _InventoryTab extends ConsumerStatefulWidget {
 class _InventoryTabState extends ConsumerState<_InventoryTab> {
   RewardCategory? _filter; // null = ทั้งหมด
 
-  Color _rarityColor(ItemRarity rarity) {
-    switch (rarity) {
-      case ItemRarity.epic:
-        return const Color(0xFF7C3AED);
-      case ItemRarity.rare:
-        return const Color(0xFF3B82F6);
-      case ItemRarity.common:
-        return AppColors.textMuted;
-    }
-  }
-
   IconData _categoryIcon(RewardCategory category) {
     switch (category) {
       case RewardCategory.equipment:
@@ -450,7 +441,7 @@ class _InventoryTabState extends ConsumerState<_InventoryTab> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 loading: () => const Text('ความจุคลัง: ...'),
-                error: (_, __) => const Text('ความจุคลัง: -'),
+                error: (_, _) => const Text('ความจุคลัง: -'),
               ),
             ),
             TextButton.icon(

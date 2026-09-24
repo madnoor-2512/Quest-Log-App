@@ -52,7 +52,7 @@ final weeklyStatsProvider =
     var totalExp = 0;
     for (final q in dayQuests) {
       countByCategory[q.category] = (countByCategory[q.category] ?? 0) + 1;
-      totalExp += q.expReward;
+      totalExp += q.awardedExp ?? q.expReward;
     }
     return DailyStatEntry(
       date: date,

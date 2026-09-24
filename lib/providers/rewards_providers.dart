@@ -49,24 +49,8 @@ class RewardsListNotifier extends AsyncNotifier<List<RewardModel>> {
 
     if (outcome == RedeemOutcome.success) {
       await ref.read(userProvider.notifier).refresh();
-      ref.invalidate(redemptionHistoryProvider);
       ref.invalidate(inventoryProvider);
     }
     return outcome;
-  }
-}
-
-final redemptionHistoryProvider =
-    AsyncNotifierProvider<
-      RedemptionHistoryNotifier,
-      List<Map<String, dynamic>>
-    >(RedemptionHistoryNotifier.new);
-
-class RedemptionHistoryNotifier
-    extends AsyncNotifier<List<Map<String, dynamic>>> {
-  @override
-  Future<List<Map<String, dynamic>>> build() async {
-    final db = ref.read(databaseHelperProvider);
-    return db.getRedemptionHistory();
   }
 }

@@ -24,14 +24,22 @@ class StreakAdjustedReward {
   final int exp;
   final int gold;
   final double multiplierApplied;
-  const StreakAdjustedReward({required this.exp, required this.gold, required this.multiplierApplied});
+  const StreakAdjustedReward({
+    required this.exp,
+    required this.gold,
+    required this.multiplierApplied,
+  });
 }
 
 class DailyCapResult {
   final int awardedExp;
   final int awardedGold;
   final bool wasCapped;
-  const DailyCapResult({required this.awardedExp, required this.awardedGold, required this.wasCapped});
+  const DailyCapResult({
+    required this.awardedExp,
+    required this.awardedGold,
+    required this.wasCapped,
+  });
 }
 
 class RewardCalculatorService {
@@ -44,10 +52,18 @@ class RewardCalculatorService {
     int subTaskCount = 0,
   }) {
     if (difficulty < 1 || difficulty > 5) {
-      throw ArgumentError.value(difficulty, 'difficulty', 'must be between 1 and 5');
+      throw ArgumentError.value(
+        difficulty,
+        'difficulty',
+        'must be between 1 and 5',
+      );
     }
     if (estimatedMinutes < 0) {
-      throw ArgumentError.value(estimatedMinutes, 'estimatedMinutes', 'must not be negative');
+      throw ArgumentError.value(
+        estimatedMinutes,
+        'estimatedMinutes',
+        'must not be negative',
+      );
     }
 
     if (difficulty >= GamificationConfig.gatekeeperDifficultyThreshold &&
@@ -62,14 +78,22 @@ class RewardCalculatorService {
     final diffMult = GamificationConfig.difficultyMultipliers[difficulty]!;
     final actMult = GamificationConfig.activityTypeMultipliers[activityType]!;
 
-    final rawExp = (estimatedMinutes * GamificationConfig.baseExpPerMinute * diffMult * actMult) +
+    final rawExp =
+        (estimatedMinutes *
+            GamificationConfig.baseExpPerMinute *
+            diffMult *
+            actMult) +
         (subTaskCount * GamificationConfig.expPerSubTask);
     final rawGold = rawExp * GamificationConfig.goldToExpRatio;
 
     final exp = max(GamificationConfig.minExpReward, rawExp.round());
     final gold = max(GamificationConfig.minGoldReward, rawGold.round());
 
-    return RewardCalculationResult(isAllowed: true, expReward: exp, goldReward: gold);
+    return RewardCalculationResult(
+      isAllowed: true,
+      expReward: exp,
+      goldReward: gold,
+    );
   }
 
   StreakAdjustedReward applyStreakMultiplier({
@@ -77,8 +101,10 @@ class RewardCalculatorService {
     required int baseGold,
     required int streakCount,
   }) {
-    final bonus = (streakCount * GamificationConfig.streakBonusPerDay)
-        .clamp(0.0, GamificationConfig.maxStreakBonus);
+    final bonus = (streakCount * GamificationConfig.streakBonusPerDay).clamp(
+      0.0,
+      GamificationConfig.maxStreakBonus,
+    );
     final multiplier = 1.0 + bonus;
     return StreakAdjustedReward(
       exp: (baseExp * multiplier).round(),
@@ -87,16 +113,29 @@ class RewardCalculatorService {
     );
   }
 
+  /// โบนัส EXP จริงจากการเลือกสาย RPG Class แล้ว (+15% เท่ากันทุกสาย) —
+  /// คูณต่อจาก streak multiplier ไปอีกชั้น ก่อนเข้า Daily Cap
+  int applyClassBonus({required int exp, required bool hasRpgClass}) {
+    if (!hasRpgClass) return exp;
+    return (exp * (1 + GamificationConfig.rpgClassExpBonus)).round();
+  }
+
   DailyCapResult applyDailyCap({
     required int proposedExp,
     required int proposedGold,
     required int alreadyEarnedExpToday,
     required int alreadyEarnedGoldToday,
   }) {
-    final remainingExp = (GamificationConfig.dailyExpCap - alreadyEarnedExpToday)
-        .clamp(0, GamificationConfig.dailyExpCap);
-    final remainingGold = (GamificationConfig.dailyGoldCap - alreadyEarnedGoldToday)
-        .clamp(0, GamificationConfig.dailyGoldCap);
+    final remainingExp =
+        (GamificationConfig.dailyExpCap - alreadyEarnedExpToday).clamp(
+          0,
+          GamificationConfig.dailyExpCap,
+        );
+    final remainingGold =
+        (GamificationConfig.dailyGoldCap - alreadyEarnedGoldToday).clamp(
+          0,
+          GamificationConfig.dailyGoldCap,
+        );
     final awardedExp = min(proposedExp, remainingExp);
     final awardedGold = min(proposedGold, remainingGold);
     return DailyCapResult(
@@ -112,14 +151,19 @@ class RewardCalculatorService {
     required int streakCount,
     required int alreadyEarnedExpToday,
     required int alreadyEarnedGoldToday,
+    bool hasRpgClass = false,
   }) {
     final streakAdj = applyStreakMultiplier(
       baseExp: baseExp,
       baseGold: baseGold,
       streakCount: streakCount,
     );
+    final expWithClassBonus = applyClassBonus(
+      exp: streakAdj.exp,
+      hasRpgClass: hasRpgClass,
+    );
     return applyDailyCap(
-      proposedExp: streakAdj.exp,
+      proposedExp: expWithClassBonus,
       proposedGold: streakAdj.gold,
       alreadyEarnedExpToday: alreadyEarnedExpToday,
       alreadyEarnedGoldToday: alreadyEarnedGoldToday,
