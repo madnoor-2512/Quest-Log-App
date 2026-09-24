@@ -94,12 +94,31 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     state = AsyncValue.data(updated);
   }
 
-  Future<void> updateProfile({required String name, int? avatarIndex}) async {
+  Future<void> updateProfile({
+    required String name,
+    int? avatarIndex,
+    String? username,
+    String? motto,
+    RpgClassPath? rpgClass,
+    bool clearRpgClass = false,
+  }) async {
     final current = state.valueOrNull;
     if (current == null) return;
-    final updated = current.copyWith(name: name, avatarIndex: avatarIndex);
+    final updated = current.copyWith(
+      name: name,
+      avatarIndex: avatarIndex,
+      username: username,
+      motto: motto,
+      rpgClass: rpgClass,
+      clearRpgClass: clearRpgClass,
+    );
     await ref.read(databaseHelperProvider).updateUser(updated);
     state = AsyncValue.data(updated);
+  }
+
+  Future<void> logout() async {
+    await ref.read(databaseHelperProvider).clearLocalUserData();
+    state = const AsyncValue.data(null);
   }
 
   String _dateKey(DateTime d) =>

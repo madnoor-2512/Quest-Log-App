@@ -4,6 +4,17 @@
 *.pyc
 *.swp
 .DS_Store
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+*.pem
+*.key
+*.cer
+*.der
 .atom/
 .build/
 .buildlog/

@@ -45,6 +45,9 @@ class GamificationConfig {
   static const double streakBonusPerDay = 0.05; // 5% per day
   static const double maxStreakBonus = 1.0; // capped at +100%
 
+  // RPG Class — โบนัส EXP จริงเมื่อเลือกสายแล้ว (เท่ากันทุกสาย)
+  static const double rpgClassExpBonus = 0.15; // +15%
+
   // Inventory — ขยายช่องคลังไอเทมด้วย Gold
   static const int inventoryExpandCost = 150; // Gold ต่อครั้ง
   static const int inventoryExpandAmount = 5; // +5 ช่องต่อครั้ง

@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/achievement_model.dart';
 import '../models/quest_model.dart';
 import '../models/sub_task_model.dart';
+import 'achievements_providers.dart';
 import 'core_providers.dart';
 import 'user_provider.dart';
 import 'weekly_stats_provider.dart';
@@ -107,9 +109,10 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     ref.invalidate(weeklyStatsProvider);
   }
 
-  Future<({int exp, int gold, bool wasCapped})> completeQuest(
-    int questId,
-  ) async {
+  Future<
+    ({int exp, int gold, bool wasCapped, List<AchievementDef> newAchievements})
+  >
+  completeQuest(int questId) async {
     final db = ref.read(databaseHelperProvider);
     final calculator = ref.read(rewardCalculatorProvider);
 
@@ -119,9 +122,13 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     if (quest == null) {
       throw StateError('Quest $questId not found.');
     }
+    if (quest.isCompleted) {
+      throw StateError('Quest $questId is already completed.');
+    }
 
     await ref.read(userProvider.notifier).touchDailyStreak();
-    final streakCount = ref.read(userProvider).valueOrNull?.streakCount ?? 0;
+    final user = ref.read(userProvider).valueOrNull;
+    final streakCount = user?.streakCount ?? 0;
 
     // นับยอดที่ "ได้รับจริง" ของวันนี้ (ไม่รวมเควสนี้ เพราะยังไม่ complete)
     final todayTotals = await db.getTodayEarnedTotals();
@@ -132,6 +139,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       streakCount: streakCount,
       alreadyEarnedExpToday: todayTotals['exp'] ?? 0,
       alreadyEarnedGoldToday: todayTotals['gold'] ?? 0,
+      hasRpgClass: user?.rpgClass != null,
     );
 
     // เขียน DB ครั้งเดียว: mark complete พร้อมบันทึกยอดที่ได้รับจริง
@@ -152,10 +160,23 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     // สำเร็จ จนกว่าจะ hot reload/restart แอป
     ref.invalidate(weeklyStatsProvider);
 
+    // เช็ค Achievement หลังทำเควสสำเร็จทุกครั้ง — ต้องนับจำนวนเควสที่
+    // สำเร็จสะสม "หลัง" mark complete แล้ว (รวมอันนี้ด้วย) ถึงจะถูกต้อง
+    final completedCount = await db.getCompletedQuestsCount();
+    final latestStreak =
+        ref.read(userProvider).valueOrNull?.streakCount ?? streakCount;
+    final newAchievements = await ref
+        .read(unlockedAchievementCodesProvider.notifier)
+        .checkAndUnlock(
+          streakDays: latestStreak,
+          questsCompleted: completedCount,
+        );
+
     return (
       exp: result.awardedExp,
       gold: result.awardedGold,
       wasCapped: result.wasCapped,
+      newAchievements: newAchievements,
     );
   }
 }

@@ -11,6 +11,8 @@ class QuestModel {
   final bool isAutoDifficulty; // true = Auto, false = Manual
   final int expReward;
   final int goldReward;
+  final int? awardedExp;
+  final int? awardedGold;
   final String? dueDate; // ISO8601
   final bool isCompleted;
   final String? completedAt; // ISO8601
@@ -27,6 +29,8 @@ class QuestModel {
     this.isAutoDifficulty = true,
     required this.expReward,
     required this.goldReward,
+    this.awardedExp,
+    this.awardedGold,
     this.dueDate,
     this.isCompleted = false,
     this.completedAt,
@@ -45,6 +49,8 @@ class QuestModel {
     bool? isAutoDifficulty,
     int? expReward,
     int? goldReward,
+    int? awardedExp,
+    int? awardedGold,
     String? dueDate,
     bool? isCompleted,
     String? completedAt,
@@ -61,6 +67,8 @@ class QuestModel {
       isAutoDifficulty: isAutoDifficulty ?? this.isAutoDifficulty,
       expReward: expReward ?? this.expReward,
       goldReward: goldReward ?? this.goldReward,
+      awardedExp: awardedExp ?? this.awardedExp,
+      awardedGold: awardedGold ?? this.awardedGold,
       dueDate: dueDate ?? this.dueDate,
       isCompleted: isCompleted ?? this.isCompleted,
       completedAt: completedAt ?? this.completedAt,
@@ -80,6 +88,8 @@ class QuestModel {
       'is_auto_difficulty': isAutoDifficulty ? 1 : 0,
       'exp_reward': expReward,
       'gold_reward': goldReward,
+      if (awardedExp != null) 'awarded_exp': awardedExp,
+      if (awardedGold != null) 'awarded_gold': awardedGold,
       'due_date': dueDate,
       'is_completed': isCompleted ? 1 : 0,
       'completed_at': completedAt,
@@ -99,6 +109,8 @@ class QuestModel {
       isAutoDifficulty: (map['is_auto_difficulty'] as int? ?? 1) == 1,
       expReward: map['exp_reward'] as int,
       goldReward: map['gold_reward'] as int,
+      awardedExp: map['awarded_exp'] as int?,
+      awardedGold: map['awarded_gold'] as int?,
       dueDate: map['due_date'] as String?,
       isCompleted: (map['is_completed'] as int? ?? 0) == 1,
       completedAt: map['completed_at'] as String?,
