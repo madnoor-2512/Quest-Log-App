@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/quest_model.dart';
 import '../models/focus_session_model.dart';
 import '../models/reward_model.dart';
+import '../services/quest_conflict_service.dart';
 import 'core_providers.dart';
+import 'user_provider.dart';
 
 final focusSelectionProvider =
     NotifierProvider<FocusSelectionNotifier, List<QuestModel>>(
@@ -16,6 +18,7 @@ class FocusSelectionNotifier extends Notifier<List<QuestModel>> {
 
   void add(QuestModel quest) {
     if (state.any((q) => q.id == quest.id)) return;
+    if (state.length >= QuestConflictService.maxParallelQuests) return;
     state = [...state, quest];
   }
 
@@ -34,13 +37,28 @@ class FocusSelectionNotifier extends Notifier<List<QuestModel>> {
   void clear() => state = const [];
 }
 
+final parallelQuestLimitProvider = FutureProvider<int>((ref) async {
+  final user = ref.watch(userProvider).valueOrNull;
+  var limit = user?.rpgClass == null ? 1 : 2;
+  final equipped = await ref.read(databaseHelperProvider).getEquippedEquipment();
+  if (equipped?.effectType == ItemEffectType.parallelQuestSlot) {
+    limit = 3;
+  }
+  return limit;
+});
+
 final blockedQuestIdsProvider = Provider.family<Set<int>, List<QuestModel>>((
   ref,
   candidates,
 ) {
   final selected = ref.watch(focusSelectionProvider);
   final conflictService = ref.watch(questConflictServiceProvider);
-  return conflictService.getBlockedQuestIds(selected, candidates);
+  final limit = ref.watch(parallelQuestLimitProvider).valueOrNull ?? 1;
+  return conflictService.getBlockedQuestIds(
+    selected,
+    candidates,
+    maxParallelQuests: limit,
+  );
 });
 
 final activeFocusSessionProvider =
@@ -58,6 +76,10 @@ class ActiveFocusSessionNotifier extends AsyncNotifier<FocusSessionModel?> {
   Future<void> start({required int targetDurationSeconds}) async {
     final selected = ref.read(focusSelectionProvider);
     if (selected.isEmpty) return;
+    final limit = await ref.read(parallelQuestLimitProvider.future);
+    if (selected.length > limit) {
+      throw StateError('Concurrent Quest slot is limited to $limit.');
+    }
 
     final db = ref.read(databaseHelperProvider);
 
@@ -82,13 +104,15 @@ class ActiveFocusSessionNotifier extends AsyncNotifier<FocusSessionModel?> {
       questIds: selected.map((q) => q.id!).toList(),
     );
 
+    final activeSession = await db.getActiveFocusSession();
     ref.read(focusSelectionProvider.notifier).clear();
     state = AsyncValue.data(
-      FocusSessionModel(
-        id: sessionId,
-        startedAt: startedAt,
-        targetDuration: finalDurationSeconds,
-      ),
+      activeSession ??
+          FocusSessionModel(
+            id: sessionId,
+            startedAt: startedAt,
+            targetDuration: finalDurationSeconds,
+          ),
     );
     ref.invalidate(activeSessionQuestsProvider);
   }

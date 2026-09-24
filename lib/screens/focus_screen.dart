@@ -51,7 +51,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       _smoothProgressNotifier.value = 0.0;
       return;
     }
-    if (_trackedSessionId == session.id && _timer != null) return;
+    if (_trackedSessionId == session.id && _timer != null) {
+      if (_totalSeconds != session.targetDuration) {
+        _startLocalTicker(session);
+      }
+      return;
+    }
     _trackedSessionId = session.id;
     _startLocalTicker(session);
   }
@@ -97,6 +102,30 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   }
 
   Future<void> _endSession() async {
+    final session = ref.read(activeFocusSessionProvider).valueOrNull;
+    final timeUp = _totalSeconds > 0 && _secondsRemaining <= 0;
+    if (!timeUp && session != null) {
+      final shouldStop = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('ยกเลิก Focus Session?'),
+          content: const Text(
+            'ถ้าจบก่อนหมดเวลา เควสต์ใน session นี้จะไม่ได้รับรางวัลใดๆ',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('ทำต่อ'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('ยกเลิก Session'),
+            ),
+          ],
+        ),
+      );
+      if (shouldStop != true) return;
+    }
     _timer?.cancel();
     _timer = null;
     _trackedSessionId = null;
@@ -138,9 +167,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   }
 
   Future<void> _completeSessionQuest(QuestModel quest) async {
+    final sessionQuests = await ref.read(activeSessionQuestsProvider.future);
     final result = await ref
         .read(questActionsProvider.notifier)
-        .completeQuest(quest.id!);
+        .completeQuest(
+          quest.id!,
+          isConcurrent: sessionQuests.length > 1,
+        );
     final settings = ref.read(settingsProvider).valueOrNull;
     if (settings?.soundEnabled ?? true) {
       await SystemSound.play(SystemSoundType.click);
@@ -192,6 +225,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   Widget _buildSelectionScreen() {
     final selected = ref.watch(focusSelectionProvider);
     final questsAsync = ref.watch(questListProvider(QuestFilter.incomplete));
+    final parallelLimit =
+        ref.watch(parallelQuestLimitProvider).valueOrNull ?? 1;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -207,8 +242,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'เลือกได้หลายเควส — ระบบจะกันเควสที่ทำพร้อมกันไม่ได้ให้อัตโนมัติ',
+          Text(
+            'เลือกได้ $parallelLimit เควส ระบบจะแสดงเฉพาะกิจกรรมที่ทำควบคู่กันได้',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 16),
@@ -225,10 +260,24 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                   );
                 }
                 final blocked = ref.watch(blockedQuestIdsProvider(quests));
+                final compatibleQuests = quests
+                    .where(
+                      (quest) =>
+                          selected.any((item) => item.id == quest.id) ||
+                          !blocked.contains(quest.id),
+                    )
+                    .toList();
+                if (compatibleQuests.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'ไม่มีเควสต์ที่ทำพร้อมกันได้กับรายการที่เลือก',
+                    ),
+                  );
+                }
                 return ListView.builder(
-                  itemCount: quests.length,
+                  itemCount: compatibleQuests.length,
                   itemBuilder: (context, index) {
-                    final q = quests[index];
+                    final q = compatibleQuests[index];
                     final isSelected = selected.any((sq) => sq.id == q.id);
                     final isDisabled = !isSelected && blocked.contains(q.id);
                     return GestureDetector(
@@ -275,7 +324,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                   ),
                   const SizedBox(height: 8),
                   RpgButton(
-                    text: 'Start Focus',
+                    text: selected.length > 1
+                      ? 'Start Concurrent Focus'
+                      : 'Start Focus',
                     backgroundColor: AppColors.primary,
                     borderColor: AppColors.primaryDark,
                     width: double.infinity,
@@ -302,47 +353,10 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       child: Column(
         children: [
           Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 220,
-                  height: 220,
-                  child: ValueListenableBuilder<double>(
-                    valueListenable: _smoothProgressNotifier,
-                    builder: (context, progress, _) {
-                      return CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 12,
-                        backgroundColor: AppColors.border,
-                        color: AppColors.secondary,
-                      );
-                    },
-                  ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _formatTime(_secondsRemaining),
-                      style: GoogleFonts.pressStart2p(
-                        fontSize: 24,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      timeUp
-                          ? 'หมดเวลาแล้ว! กดจบเซสชันได้เลย'
-                          : 'กำลังโฟกัส...',
-                      style: const TextStyle(
-                        color: AppColors.textMuted,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            child: questsAsync.when(
+              loading: () => _buildTimerRings(session, const []),
+              error: (error, stackTrace) => _buildTimerRings(session, const []),
+              data: (quests) => _buildTimerRings(session, quests),
             ),
           ),
           const SizedBox(height: 20),
@@ -371,15 +385,116 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 if (quests.isEmpty) {
                   return const Center(child: Text('ไม่มีเควสในเซสชันนี้'));
                 }
+                final completedCount =
+                    quests.where((quest) => quest.isCompleted).length;
+                final progress = completedCount / quests.length;
                 return ListView.builder(
-                  itemCount: quests.length,
+                  itemCount: quests.length + 1,
                   itemBuilder: (context, index) {
-                    final q = quests[index];
-                    return QuestCard(
-                      quest: q,
-                      onComplete: q.isCompleted
-                          ? null
-                          : () => _completeSessionQuest(q),
+                    if (index == 0) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  quests.length > 1
+                                      ? 'Concurrent Quests'
+                                      : 'Focus Quest',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  '$completedCount/${quests.length} สำเร็จ',
+                                  style: const TextStyle(
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(8),
+                              backgroundColor: AppColors.border,
+                              color: AppColors.secondary,
+                            ),
+                            if (!timeUp)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'เควสต์จะกดสำเร็จได้เมื่อหมดเวลา',
+                                  style: TextStyle(
+                                    color: AppColors.textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    }
+                    final q = quests[index - 1];
+                    final elapsedSeconds = DateTime.now()
+                        .difference(DateTime.parse(session.startedAt))
+                        .inSeconds
+                        .clamp(0, session.targetDuration);
+                    final questProgress = session.targetDuration == 0
+                        ? 0.0
+                        : elapsedSeconds / session.targetDuration;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  q.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                '${(questProgress * 100).round()}%',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: q.isCompleted ? 1 : questProgress,
+                            minHeight: 7,
+                            backgroundColor: AppColors.border,
+                            color: q.isCompleted
+                                ? AppColors.primary
+                                : AppColors.secondary,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        QuestCard(
+                          quest: q,
+                          onComplete: q.isCompleted || !timeUp
+                              ? null
+                              : () => _completeSessionQuest(q),
+                        ),
+                      ],
                     );
                   },
                 );
@@ -388,6 +503,89 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildTimerRings(
+    FocusSessionModel session,
+    List<QuestModel> quests,
+  ) {
+    final sessionProgress = _totalSeconds == 0
+        ? 0.0
+        : _secondsRemaining / _totalSeconds;
+    final isConcurrent = quests.length > 1;
+    final ringColors = [
+      AppColors.secondary,
+      AppColors.primary,
+      const Color(0xFFE77855),
+      const Color(0xFF7C9A68),
+    ];
+    final ringCount = quests.isEmpty ? 1 : quests.length;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isConcurrent)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.primary),
+            ),
+            child: Text(
+              'Concurrent Focus  •  Synergy +10%',
+              style: TextStyle(
+                color: AppColors.primaryDark,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        const SizedBox(height: 10),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            for (var index = 0; index < ringCount && index < 3; index++)
+              SizedBox(
+                width: 240 - (index * 26),
+                height: 240 - (index * 26),
+                child: CircularProgressIndicator(
+                  value: quests.isEmpty || quests[index].isCompleted
+                      ? 1
+                      : sessionProgress,
+                  strokeWidth: index == 0 ? 10 : 7,
+                  backgroundColor: AppColors.borderLight,
+                  color: ringColors[index],
+                ),
+              ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _formatTime(_secondsRemaining),
+                  style: GoogleFonts.pressStart2p(
+                    fontSize: 24,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _secondsRemaining <= 0
+                      ? 'หมดเวลาแล้ว!'
+                      : isConcurrent
+                          ? '${quests.length} เควสต์กำลังทำพร้อมกัน'
+                          : 'กำลังโฟกัส...',
+                  style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

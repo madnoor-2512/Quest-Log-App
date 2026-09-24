@@ -14,6 +14,8 @@ class ConflictResult {
 class QuestConflictService {
   const QuestConflictService();
 
+  static const int maxParallelQuests = 3;
+
   // คู่ activity type ที่ขัดแย้งกันอย่างรุนแรง (unordered pairs)
   static const List<({ActivityType a, ActivityType b, String reason})> _severeConflicts = [
     (
@@ -21,13 +23,40 @@ class QuestConflictService {
       b: ActivityType.stillness,
       reason: 'ออกกำลังกายหนักและการนั่งสมาธิทำพร้อมกันไม่ได้',
     ),
+    (
+      a: ActivityType.mental,
+      b: ActivityType.mental,
+      reason: 'ไม่สามารถใช้สมาธิกับภารกิจหลักสองอย่างพร้อมกันได้',
+    ),
+    (
+      a: ActivityType.mental,
+      b: ActivityType.stillness,
+      reason: 'ไม่สามารถร่ายเวทสองบทที่ใช้สมาธิพร้อมกันได้',
+    ),
+    (
+      a: ActivityType.stillness,
+      b: ActivityType.stillness,
+      reason: 'การฝึกสมาธิสองภารกิจควรทำทีละอย่าง',
+    ),
+    (
+      a: ActivityType.audioOnly,
+      b: ActivityType.audioOnly,
+      reason: 'ไม่สามารถรับฟังสองภารกิจพร้อมกันให้ได้คุณภาพได้',
+    ),
   ];
 
   /// ตรวจว่า [candidate] ขัดแย้งกับเควสใดใน [selected] หรือไม่
   ConflictResult canAddToSelection(
     List<QuestModel> selected,
     QuestModel candidate,
+    {int maxParallelQuests = QuestConflictService.maxParallelQuests}
   ) {
+    if (selected.length >= maxParallelQuests) {
+      return const ConflictResult(
+        hasConflict: true,
+        reason: 'ช่อง Concurrent Quest ของคุณเต็มแล้ว',
+      );
+    }
     for (final existing in selected) {
       final result = checkPair(existing.activityType, candidate.activityType);
       if (result.hasConflict) return result;
@@ -50,11 +79,16 @@ class QuestConflictService {
   Set<int> getBlockedQuestIds(
     List<QuestModel> selected,
     List<QuestModel> candidates,
+    {int maxParallelQuests = QuestConflictService.maxParallelQuests}
   ) {
     final blocked = <int>{};
     for (final candidate in candidates) {
       if (selected.any((s) => s.id == candidate.id)) continue;
-      if (canAddToSelection(selected, candidate).hasConflict) {
+      if (canAddToSelection(
+        selected,
+        candidate,
+        maxParallelQuests: maxParallelQuests,
+      ).hasConflict) {
         if (candidate.id != null) blocked.add(candidate.id!);
       }
     }

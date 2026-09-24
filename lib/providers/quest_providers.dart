@@ -112,7 +112,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
   Future<
     ({int exp, int gold, bool wasCapped, List<AchievementDef> newAchievements})
   >
-  completeQuest(int questId) async {
+  completeQuest(int questId, {bool isConcurrent = false}) async {
     final db = ref.read(databaseHelperProvider);
     final calculator = ref.read(rewardCalculatorProvider);
 
@@ -140,19 +140,25 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       alreadyEarnedExpToday: todayTotals['exp'] ?? 0,
       alreadyEarnedGoldToday: todayTotals['gold'] ?? 0,
       hasRpgClass: user?.rpgClass != null,
+      isConcurrent: isConcurrent,
     );
 
-    // เขียน DB ครั้งเดียว: mark complete พร้อมบันทึกยอดที่ได้รับจริง
-    // ไปด้วยกัน กัน race condition ระหว่าง 2 การเขียน
-    await db.completeQuest(
-      questId,
+    if (user == null) {
+      throw StateError('Cannot complete a quest without an active user.');
+    }
+    final updatedUser = user.withRewards(
+      exp: result.awardedExp,
+      gold: result.awardedGold,
+    );
+
+    // Mark the quest and award the user's rewards in one transaction.
+    await db.completeQuestAndUpdateUser(
+      questId: questId,
       awardedExp: result.awardedExp,
       awardedGold: result.awardedGold,
+      updatedUser: updatedUser,
     );
-
-    await ref
-        .read(userProvider.notifier)
-        .addExpAndGold(exp: result.awardedExp, gold: result.awardedGold);
+    await ref.read(userProvider.notifier).refresh();
 
     ref.invalidate(questListProvider);
     // Dashboard ใช้ IndexedStack ทำให้ StatsScreen ถูก mount ค้างไว้ตลอด —

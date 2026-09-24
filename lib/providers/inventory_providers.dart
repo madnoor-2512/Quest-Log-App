@@ -89,6 +89,8 @@ class InventoryNotifier extends AsyncNotifier<List<InventoryEntry>> {
         // ผ่านปุ่ม "ใช้" แบบ consumable แต่กันไว้เผื่อมีคนตั้ง reward ผิด
         // หมวดหมู่
         return 'ไอเทมนี้เป็นของสวมใส่ ให้กดปุ่ม "สวมใส่" แทนการใช้';
+      case ItemEffectType.parallelQuestSlot:
+        return 'ไอเทมนี้เป็นของสวมใส่ เพื่อปลดล็อกช่อง Concurrent Quest';
       case ItemEffectType.none:
         return 'ใช้ไอเทมเรียบร้อย';
     }

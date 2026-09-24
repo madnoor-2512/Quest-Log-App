@@ -126,7 +126,7 @@ class MemberCenterScreen extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('ออกจากระบบ?'),
-        content: const Text('คุณจะต้องเข้าสู่ระบบใหม่เพื่อกลับมาเล่นต่อ'),
+        content: const Text('ข้อมูลความคืบหน้าจะยังคงอยู่ในเครื่องนี้'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),

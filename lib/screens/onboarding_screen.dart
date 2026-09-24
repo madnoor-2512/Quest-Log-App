@@ -65,8 +65,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       avatarIndex: _selectedAvatar,
     );
 
+    await db.clearLocalUserData();
     await db.insertUser(user);
-    ref.invalidate(userProvider);
+    await ref.read(userProvider.notifier).activateLocalUser();
 
     // บันทึก toggle การแจ้งเตือนที่เลือกไว้หน้า 3 ลง settingsProvider จริง
     // (ก่อนหน้านี้เก็บแค่ local state ในหน้า onboarding แล้วทิ้งไปเฉยๆ)
@@ -74,6 +75,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     // setXxx(bool) ตรงๆ จึงต้องเทียบค่า default กับค่าที่ผู้ใช้เลือกไว้
     // แล้วสลับเฉพาะตัวที่ไม่ตรงกัน
     final settingsNotifier = ref.read(settingsProvider.notifier);
+    await settingsNotifier.resetToDefaults();
     final currentSettings =
         ref.read(settingsProvider).valueOrNull ?? const SettingsState();
     if (currentSettings.morningDigest != _morningDigest) {
