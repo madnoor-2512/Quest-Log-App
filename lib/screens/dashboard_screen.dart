@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../models/quest_enums.dart';
 import '../providers/focus_providers.dart';
 import '../providers/quest_providers.dart';
 import '../providers/settings_provider.dart';
@@ -306,6 +307,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   setState(() => _currentBottomNav = 1);
                 },
                 onComplete: () async {
+                  if (quest.goalType == QuestGoalType.dailyHabit) {
+                    try {
+                      final result = await ref
+                          .read(questActionsProvider.notifier)
+                          .checkInHabit(quest.id!);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'เช็กอินสำเร็จ วันที่ ${result.day}! ได้รับ '
+                            '+${result.exp} EXP, +${result.gold} Gold'
+                            '${result.completed ? ' เควสต์ Habit สำเร็จครบเป้าหมายแล้ว!' : ''}',
+                          ),
+                          backgroundColor: AppColors.primaryDark,
+                        ),
+                      );
+                    } catch (error) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('เช็กอินไม่สำเร็จ: $error'),
+                          backgroundColor: AppColors.error,
+                        ),
+                      );
+                    }
+                    return;
+                  }
+                  if (quest.estimatedMinutes > 0) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'เควสต์ที่มีเวลาต้องทำผ่าน Focus Timer อย่างน้อย 80% ก่อน',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
                   final result = await ref
                       .read(questActionsProvider.notifier)
                       .completeQuest(quest.id!);

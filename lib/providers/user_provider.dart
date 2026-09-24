@@ -45,23 +45,7 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     final current = state.valueOrNull;
     if (current == null) return;
 
-    var newExp = current.currentExp + exp;
-    var newLevel = current.level;
-    var newMaxExp = current.maxExp;
-
-    while (newExp >= newMaxExp) {
-      newExp -= newMaxExp;
-      newLevel += 1;
-      newMaxExp = (newMaxExp * 1.2).round();
-    }
-
-    final updated = current.copyWith(
-      level: newLevel,
-      currentExp: newExp,
-      maxExp: newMaxExp,
-      gold: current.gold + gold,
-    );
-
+    final updated = current.withRewards(exp: exp, gold: gold);
     await ref.read(databaseHelperProvider).updateUser(updated);
     state = AsyncValue.data(updated);
   }

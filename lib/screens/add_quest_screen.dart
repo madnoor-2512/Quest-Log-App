@@ -4,6 +4,7 @@ import '../models/quest_enums.dart';
 import '../models/quest_model.dart';
 import '../providers/core_providers.dart';
 import '../providers/quest_providers.dart';
+import '../services/gamification_config.dart';
 import '../theme/app_colors.dart';
 import '../widgets/rpg_button.dart';
 
@@ -21,29 +22,26 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
-  final _manualExpController = TextEditingController();
-  final _manualGoldController = TextEditingController();
   final _subTaskInputController = TextEditingController();
+  final _habitStartController = TextEditingController(text: '05:00');
+  final _habitEndController = TextEditingController(text: '05:30');
 
   QuestCategory _category = QuestCategory.main;
+  QuestGoalType _goalType = QuestGoalType.focus;
   ActivityType _activityType = ActivityType.mental;
   int _difficulty = 3;
   int _estimatedMinutes = 25;
-  bool _autoCalculate = true;
+  int _habitTargetDays = 30;
   final List<String> _subTasks = [];
 
   int _expReward = 30;
   int _goldReward = 15;
 
-  // Gatekeeper block ใช้กับโหมด Auto-Calculate เท่านั้น — โหมด Manual
-  // ผู้ใช้กำหนดรางวัลเองได้อิสระ จึงไม่มีทางติดล็อกไม่ให้บันทึก
   String? _blockReason;
 
   @override
   void initState() {
     super.initState();
-    _manualExpController.text = _expReward.toString();
-    _manualGoldController.text = _goldReward.toString();
     _recalcReward();
   }
 
@@ -51,15 +49,21 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
-    _manualExpController.dispose();
-    _manualGoldController.dispose();
     _subTaskInputController.dispose();
+    _habitStartController.dispose();
+    _habitEndController.dispose();
     super.dispose();
   }
 
   void _recalcReward() {
-    if (!_autoCalculate) return;
-
+    if (_goalType == QuestGoalType.dailyHabit) {
+      setState(() {
+        _blockReason = null;
+        _expReward = GamificationConfig.habitDailyExpReward;
+        _goldReward = GamificationConfig.habitDailyGoldReward;
+      });
+      return;
+    }
     final calculator = ref.read(rewardCalculatorProvider);
     final result = calculator.calculateAutoReward(
       difficulty: _difficulty,
@@ -79,6 +83,15 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
     });
   }
 
+  int _parseTime(String value) {
+    final parts = value.split(':');
+    if (parts.length != 2) return -1;
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null || hour > 23 || minute > 59) return -1;
+    return hour * 60 + minute;
+  }
+
   void _addSubTask() {
     final title = _subTaskInputController.text.trim();
     if (title.isEmpty) return;
@@ -94,30 +107,43 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
     _recalcReward();
   }
 
-  /// สลับโหมด Auto-Calculate <-> Manual
-  /// สำคัญ: ต้องเคลียร์ _blockReason ทุกครั้งที่ปิด Auto-Calculate ไม่งั้า
-  /// ปุ่มบันทึกจะค้าง disable ถาวรเพราะไม่มีทางเคลียร์ค่านี้ในโหมด manual
-  void _toggleAutoCalculate(bool val) {
+  void _applyPreset({
+    required String title,
+    required ActivityType activityType,
+    required int minutes,
+  }) {
     setState(() {
-      _autoCalculate = val;
-      if (!val) {
-        _blockReason = null;
-        _manualExpController.text = _expReward.toString();
-        _manualGoldController.text = _goldReward.toString();
-      }
+      _titleController.text = title;
+      _activityType = activityType;
+      _estimatedMinutes = minutes;
+      _goalType = QuestGoalType.focus;
     });
-    if (val) _recalcReward();
+    _recalcReward();
+  }
+
+  String get _statAlignment {
+    switch (_activityType) {
+      case ActivityType.physicalHeavy:
+        return '⚔️ STR +5  •  พลังและความอึด';
+      case ActivityType.mental:
+        return '🔮 INT +5  •  สมาธิและการเรียนรู้';
+      case ActivityType.audioOnly:
+        return '🛡️ WIS +3  •  การรับรู้และภาษา';
+      case ActivityType.stillness:
+        return '🛡️ DEX +3  •  สมดุลและการควบคุม';
+    }
   }
 
   Future<void> _saveQuest() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_autoCalculate && _blockReason != null) return;
-
-    if (!_autoCalculate) {
-      // โหมด manual: ใช้ค่าที่ผู้ใช้กรอกเอง (validator ของ TextFormField
-      // การันตีแล้วว่า parse เป็นจำนวนเต็ม >= 0 ได้)
-      _expReward = int.parse(_manualExpController.text.trim());
-      _goldReward = int.parse(_manualGoldController.text.trim());
+    if (_blockReason != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_blockReason!),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
     }
 
     final quest = QuestModel(
@@ -128,11 +154,23 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
       category: _category,
       difficulty: _difficulty,
       activityType: _activityType,
-      estimatedMinutes: _estimatedMinutes,
+        goalType: _goalType,
+        estimatedMinutes: _goalType == QuestGoalType.dailyHabit
+          ? 0
+          : _estimatedMinutes,
       expReward: _expReward,
       goldReward: _goldReward,
-      isAutoDifficulty: _autoCalculate,
+      isAutoDifficulty: true,
       createdAt: DateTime.now().toIso8601String(),
+        habitStartMinute: _goalType == QuestGoalType.dailyHabit
+          ? _parseTime(_habitStartController.text)
+          : null,
+        habitEndMinute: _goalType == QuestGoalType.dailyHabit
+          ? _parseTime(_habitEndController.text)
+          : null,
+        habitTargetDays: _goalType == QuestGoalType.dailyHabit
+          ? _habitTargetDays
+          : null,
     );
 
     await ref
@@ -166,6 +204,18 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
       appBar: widget.showAppBar
           ? AppBar(title: const Text('เพิ่มเควสใหม่ (New Quest)'))
           : null,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: RpgButton(
+            text: '⚔️ ยืนยันรับเควส',
+            backgroundColor: AppColors.primary,
+            borderColor: AppColors.primaryDark,
+            width: double.infinity,
+            onPressed: _saveQuest,
+          ),
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Form(
@@ -188,6 +238,7 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
               TextFormField(
                 controller: _titleController,
                 decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.edit_note_rounded),
                   labelText: 'ชื่อเควส / ภารกิจ',
                   hintText: 'เช่น เขียนรายงานประจำเดือน',
                   border: OutlineInputBorder(
@@ -198,6 +249,121 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
                     v == null || v.trim().isEmpty ? 'กรุณาระบุชื่อเควส' : null,
               ),
               const SizedBox(height: 16),
+              const Text(
+                'Quick Presets',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ActionChip(
+                    label: const Text('💧 ดื่มน้ำ 8 แก้ว'),
+                    onPressed: () => _applyPreset(
+                      title: 'ดื่มน้ำ 8 แก้ว',
+                      activityType: ActivityType.stillness,
+                      minutes: 10,
+                    ),
+                  ),
+                  ActionChip(
+                    label: const Text('📖 อ่านหนังสือ 20 นาที'),
+                    onPressed: () => _applyPreset(
+                      title: 'อ่านหนังสือ',
+                      activityType: ActivityType.mental,
+                      minutes: 20,
+                    ),
+                  ),
+                  ActionChip(
+                    label: const Text('🏃 วิ่ง 15 นาที'),
+                    onPressed: () => _applyPreset(
+                      title: 'วิ่ง',
+                      activityType: ActivityType.physicalHeavy,
+                      minutes: 15,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              const Text(
+                'รูปแบบเป้าหมาย (Goal Type)',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const Text(
+                'เลือกวิธีทำเควส เพื่อให้ระบบติดตามและให้รางวัลได้ถูกต้อง',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: QuestGoalType.values.map((type) {
+                  return ChoiceChip(
+                    label: Text(type.displayName),
+                    selected: _goalType == type,
+                    onSelected: (selected) {
+                      if (!selected) return;
+                      setState(() => _goalType = type);
+                      _recalcReward();
+                    },
+                  );
+                }).toList(),
+              ),
+              if (_goalType == QuestGoalType.dailyHabit) ...[
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _habitStartController,
+                        decoration: const InputDecoration(
+                          labelText: 'เริ่มเช็กอิน (HH:mm)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) => _parseTime(value ?? '') < 0
+                            ? 'ใช้รูปแบบ HH:mm'
+                            : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _habitEndController,
+                        decoration: const InputDecoration(
+                          labelText: 'สิ้นสุด (HH:mm)',
+                          border: OutlineInputBorder(),
+                        ),
+                        validator: (value) {
+                          final end = _parseTime(value ?? '');
+                          if (end < 0) return 'ใช้รูปแบบ HH:mm';
+                          final start = _parseTime(_habitStartController.text);
+                          if (start >= 0 && end <= start) {
+                            return 'ต้องหลังเวลาเริ่ม';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('ระยะเวลาเป้าหมาย'),
+                    Text('$_habitTargetDays วัน'),
+                  ],
+                ),
+                Slider(
+                  value: _habitTargetDays.toDouble(),
+                  min: 7,
+                  max: 90,
+                  divisions: 83,
+                  onChanged: (value) =>
+                      setState(() => _habitTargetDays = value.round()),
+                ),
+              ],
+              const SizedBox(height: 20),
 
               // Description
               TextFormField(
@@ -257,6 +423,23 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
                     },
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.primary),
+                ),
+                child: Text(
+                  _statAlignment,
+                  style: const TextStyle(
+                    color: AppColors.primaryDark,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               const SizedBox(height: 20),
 
@@ -329,6 +512,7 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
 
               const SizedBox(height: 20),
 
+              if (_goalType == QuestGoalType.focus) ...[
               // Difficulty Slider
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -385,17 +569,16 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
                 },
               ),
               const SizedBox(height: 16),
+              ],
 
-              // Auto-calculate switch
-              SwitchListTile(
-                value: _autoCalculate,
-                title: const Text('คำนวณรางวัลอัตโนมัติ (RPG Formula)'),
-                onChanged: _toggleAutoCalculate,
+              const Text(
+                'รางวัลคำนวณอัตโนมัติจากความยาก เวลา ประเภทกิจกรรม และ Sub-tasks',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
               ),
               const SizedBox(height: 12),
 
-              // Reward Preview (auto) / Block Warning (auto) / Manual Input
-              if (_autoCalculate && _blockReason != null)
+              // Reward Preview (auto) / Block Warning (auto)
+              if (_blockReason != null)
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -422,7 +605,7 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
                     ],
                   ),
                 )
-              else if (_autoCalculate)
+              else
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -470,54 +653,23 @@ class _AddQuestScreenState extends ConsumerState<AddQuestScreen> {
                       ),
                     ],
                   ),
-                )
-              else
-                // Manual mode: ให้กรอก EXP/Gold เอง (ไม่มี gatekeeper บล็อก)
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _manualExpController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'EXP รางวัล',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          if (n == null || n < 0) return 'ระบุจำนวนเต็ม ≥ 0';
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextFormField(
-                        controller: _manualGoldController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Gold รางวัล',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (v) {
-                          final n = int.tryParse((v ?? '').trim());
-                          if (n == null || n < 0) return 'ระบุจำนวนเต็ม ≥ 0';
-                          return null;
-                        },
-                      ),
-                    ),
-                  ],
                 ),
-              const SizedBox(height: 28),
+              if (_blockReason == null) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: Text(
+                    '🔥 Difficulty Bonus x${GamificationConfig.difficultyMultipliers[_difficulty]!.toStringAsFixed(1)}'
+                    '${_subTasks.length > GamificationConfig.maxRewardedSubTasks ? '  •  Sub-task bonus capped at ${GamificationConfig.maxRewardedSubTasks}' : ''}',
+                    style: const TextStyle(
+                      color: AppColors.secondaryDark,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
 
-              RpgButton(
-                text: 'บันทึกเควส',
-                backgroundColor: AppColors.primary,
-                borderColor: AppColors.primaryDark,
-                onPressed: (_autoCalculate && _blockReason != null)
-                    ? null
-                    : _saveQuest,
-              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

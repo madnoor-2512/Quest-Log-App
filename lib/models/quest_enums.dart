@@ -1,6 +1,18 @@
 /// หมวดหมู่ของเควส
 enum QuestCategory { main, side, daily }
 
+enum QuestGoalType { focus, dailyHabit }
+
+extension QuestGoalTypeX on QuestGoalType {
+  String get dbValue => this == QuestGoalType.focus ? 'FOCUS' : 'DAILY_HABIT';
+
+  String get displayName =>
+    this == QuestGoalType.focus ? 'Focus Quest' : 'Daily Habit / Check-in';
+
+  static QuestGoalType fromDb(String? value) =>
+    value == 'DAILY_HABIT' ? QuestGoalType.dailyHabit : QuestGoalType.focus;
+}
+
 extension QuestCategoryX on QuestCategory {
   String get dbValue {
     switch (this) {

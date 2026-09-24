@@ -32,14 +32,16 @@ class GamificationConfig {
 
   // EXP per sub-task
   static const double expPerSubTask = 3.0;
+  static const int maxRewardedSubTasks = 5;
 
   // Duration-Difficulty Gatekeeper
   static const int gatekeeperDifficultyThreshold = 4; // difficulty >= 4
   static const int gatekeeperMinMinutes = 30; // must be >= 30 min
 
   // Daily Cap (Anti-Exploit)
-  static const int dailyExpCap = 500;
-  static const int dailyGoldCap = 250;
+  static const int dailyExpCap = 2000;
+  static const int dailyGoldCap = 1000;
+  static const double minimumFocusCompletionRatio = 0.8;
 
   // Streak Multiplier
   static const double streakBonusPerDay = 0.05; // 5% per day
@@ -49,7 +51,9 @@ class GamificationConfig {
   static const double rpgClassExpBonus = 0.15; // +15%
 
   // Concurrent focus — โบนัสเมื่อจัดการเควสต์ที่ทำพร้อมกันสำเร็จ
-  static const double concurrentQuestBonus = 0.10; // +10%
+  static const double concurrentQuestBonus = 0.15; // +15%
+  static const int habitDailyExpReward = 30;
+  static const int habitDailyGoldReward = 15;
 
   // Inventory — ขยายช่องคลังไอเทมด้วย Gold
   static const int inventoryExpandCost = 150; // Gold ต่อครั้ง

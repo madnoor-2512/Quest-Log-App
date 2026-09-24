@@ -106,7 +106,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('ยกเลิก Focus Session?'),
           content: const Text(
-            'ถ้าจบก่อนหมดเวลา เควสต์ใน session นี้จะไม่ได้รับรางวัลใดๆ',
+            'เควสต์ที่ทำครบเวลาแล้วจะยังคงสำเร็จ ส่วนเควสต์ที่ยังไม่ครบเวลาจะไม่ถูกทำสำเร็จ',
           ),
           actions: [
             TextButton(
@@ -136,7 +136,13 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
 
     try {
       final quests = await ref.read(activeSessionQuestsProvider.future);
-      final pendingQuests = quests.where((quest) => !quest.isCompleted).toList();
+      final elapsedSeconds = _totalSeconds - _secondsRemaining;
+      final pendingQuests = quests.where((quest) {
+        final duration = quest.estimatedMinutes > 0
+            ? quest.estimatedMinutes * 60
+          : session!.targetDuration;
+        return !quest.isCompleted && elapsedSeconds >= duration;
+      }).toList();
       final isConcurrent = quests.length > 1;
       var totalExp = 0;
       var totalGold = 0;
@@ -144,7 +150,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       for (final quest in pendingQuests) {
         final result = await ref
             .read(questActionsProvider.notifier)
-            .completeQuest(quest.id!, isConcurrent: isConcurrent);
+            .completeQuest(
+              quest.id!,
+              isConcurrent: isConcurrent,
+              fromFocus: true,
+              focusCompletionRatio: 1,
+            );
         totalExp += result.exp;
         totalGold += result.gold;
       }
@@ -157,8 +168,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           content: Text(
             pendingQuests.isEmpty
                 ? 'เซสชันเสร็จสิ้น เควสต์ทั้งหมดสำเร็จแล้ว'
+                : isConcurrent
+                ? 'หมดเวลาแล้ว! Multitasking Adventurer: สำเร็จ '
+                  '${pendingQuests.length} เควสต์ ได้รับ +$totalExp EXP, '
+                  '+$totalGold Gold รวม Combo Bonus +15%'
                 : 'หมดเวลาแล้ว! สำเร็จ ${pendingQuests.length} เควสต์ '
-                      'ได้รับ +$totalExp EXP, +$totalGold Gold',
+                  'ได้รับ +$totalExp EXP, +$totalGold Gold',
           ),
           backgroundColor: AppColors.primaryDark,
           duration: const Duration(seconds: 4),
@@ -197,7 +212,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       for (final quest in pendingQuests) {
         await ref
             .read(questActionsProvider.notifier)
-            .completeQuest(quest.id!, isConcurrent: isConcurrent);
+            .completeQuest(
+              quest.id!,
+              isConcurrent: isConcurrent,
+              fromFocus: true,
+              focusCompletionRatio: 1,
+            );
       }
       ref.invalidate(activeSessionQuestsProvider);
 
@@ -613,7 +633,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
               border: Border.all(color: AppColors.primary),
             ),
             child: Text(
-              'Concurrent Focus  •  Synergy +10%',
+              'Concurrent Focus  •  Synergy +15%',
               style: TextStyle(
                 color: AppColors.primaryDark,
                 fontWeight: FontWeight.bold,
