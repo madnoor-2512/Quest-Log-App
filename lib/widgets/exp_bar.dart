@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 /// Animated EXP progress bar — fills smoothly with TweenAnimationBuilder
-class ExpBar extends StatelessWidget {
+class ExpBar extends StatefulWidget {
   final int currentExp;
   final int maxExp;
   final double height;
@@ -17,13 +17,40 @@ class ExpBar extends StatelessWidget {
   });
 
   @override
+  State<ExpBar> createState() => _ExpBarState();
+}
+
+class _ExpBarState extends State<ExpBar> {
+  late double _previousRatio;
+
+  double _calculateRatio(int current, int max) {
+    return max > 0 ? (current / max).clamp(0.0, 1.0) : 0.0;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _previousRatio = _calculateRatio(widget.currentExp, widget.maxExp);
+  }
+
+  @override
+  void didUpdateWidget(covariant ExpBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentExp != widget.currentExp ||
+        oldWidget.maxExp != widget.maxExp) {
+      _previousRatio = _calculateRatio(oldWidget.currentExp, oldWidget.maxExp);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final ratio = maxExp > 0 ? (currentExp / maxExp).clamp(0.0, 1.0) : 0.0;
+    final targetRatio = _calculateRatio(widget.currentExp, widget.maxExp);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (showLabel)
+        if (widget.showLabel)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -35,29 +62,29 @@ class ExpBar extends StatelessWidget {
                     ),
               ),
               Text(
-                '$currentExp / $maxExp',
+                '${widget.currentExp} / ${widget.maxExp}',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: AppColors.textSecondary,
                     ),
               ),
             ],
           ),
-        if (showLabel) const SizedBox(height: 4),
+        if (widget.showLabel) const SizedBox(height: 4),
         LayoutBuilder(
           builder: (context, constraints) {
             return Container(
-              height: height,
+              height: widget.height,
               width: constraints.maxWidth,
               decoration: BoxDecoration(
                 color: AppColors.expBarBg,
-                borderRadius: BorderRadius.circular(height / 2),
+                borderRadius: BorderRadius.circular(widget.height / 2),
                 border: Border.all(color: AppColors.border, width: 1.5),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(height / 2 - 1),
+                borderRadius: BorderRadius.circular(widget.height / 2 - 1),
                 child: TweenAnimationBuilder<double>(
-                  tween: Tween<double>(begin: 0, end: ratio),
-                  duration: const Duration(milliseconds: 700),
+                  tween: Tween<double>(begin: _previousRatio, end: targetRatio),
+                  duration: const Duration(milliseconds: 800),
                   curve: Curves.easeOutCubic,
                   builder: (context, value, _) {
                     return Stack(

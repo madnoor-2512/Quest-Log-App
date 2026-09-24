@@ -43,13 +43,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   void _listenForLevelUp() {
+    ref.listen<AsyncValue<int>>(levelUpEventProvider, (_, next) {
+      next.whenData((lvl) {
+        if (mounted) {
+          setState(() {
+            _showingLevelUp = lvl;
+          });
+        }
+      });
+    });
     ref.listen(userProvider, (previous, next) {
       final oldUser = previous?.valueOrNull;
       final newUser = next.valueOrNull;
       if (oldUser != null && newUser != null && newUser.level > oldUser.level) {
-        setState(() {
-          _showingLevelUp = newUser.level;
-        });
+        if (mounted && _showingLevelUp != newUser.level) {
+          setState(() {
+            _showingLevelUp = newUser.level;
+          });
+        }
       }
     });
   }

@@ -304,12 +304,14 @@ class _ShopTab extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: canAfford
-                          ? AppColors.secondary
-                          : Colors.grey.shade400,
-                    ),
+                  RpgButton(
+                    text: 'แลกรางวัล',
+                    height: 38,
+                    fontSize: 13,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    backgroundColor: AppColors.secondary,
+                    borderColor: const Color(0xFFD97706),
+                    bounceOnTap: true,
                     onPressed: canAfford
                         ? () async {
                             final outcome = await ref
@@ -335,7 +337,6 @@ class _ShopTab extends ConsumerWidget {
                             );
                           }
                         : null,
-                    child: const Text('แลกรางวัล'),
                   ),
                 ],
               ),
@@ -625,15 +626,26 @@ class _InventoryTabState extends ConsumerState<_InventoryTab> {
             ),
           );
         }
-        return OutlinedButton(
+        return RpgButton(
+          text: 'สวมใส่',
+          height: 34,
+          fontSize: 12,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          backgroundColor: AppColors.primary,
+          borderColor: AppColors.primaryDark,
+          bounceOnTap: true,
           onPressed: () => _handleEquip(entry),
-          child: const Text('สวมใส่'),
         );
       case RewardCategory.consumable:
-        return ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.secondary),
+        return RpgButton(
+          text: 'ใช้',
+          height: 34,
+          fontSize: 12,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          backgroundColor: AppColors.secondary,
+          borderColor: const Color(0xFFD97706),
+          bounceOnTap: true,
           onPressed: () => _handleUse(entry),
-          child: const Text('ใช้'),
         );
       case RewardCategory.collectible:
         return Container(

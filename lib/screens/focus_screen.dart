@@ -27,23 +27,26 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   int? _trackedSessionId;
   int _totalSeconds = 0;
   int _secondsRemaining = 0;
+  final ValueNotifier<double> _smoothProgressNotifier =
+      ValueNotifier<double>(0.0);
 
   @override
   void dispose() {
     _timer?.cancel();
+    _smoothProgressNotifier.dispose();
     super.dispose();
   }
 
   // -------------------------------------------------------------------
   // Timer — คำนวณเวลาที่เหลือจาก started_at + target_duration ของ session
-  // จริงใน DB (ไม่ใช่นับถอยหลังลอยๆ ในตัว widget) เพื่อให้ตรงกันแม้แอป
-  // ถูก mount ใหม่ระหว่างเซสชันกำลังทำงานอยู่
+  // จริงใน DB หมุนแบบ smooth 60fps/sub-second ไม่ jump ทีละวิ
   // -------------------------------------------------------------------
   void _syncTicker(FocusSessionModel? session) {
     if (session == null) {
       _timer?.cancel();
       _timer = null;
       _trackedSessionId = null;
+      _smoothProgressNotifier.value = 0.0;
       return;
     }
     if (_trackedSessionId == session.id && _timer != null) return;
@@ -54,16 +57,26 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   void _startLocalTicker(FocusSessionModel session) {
     final startedAt = DateTime.parse(session.startedAt);
     _totalSeconds = session.targetDuration;
+    final totalMs = _totalSeconds * 1000;
 
     void tick() {
-      final elapsed = DateTime.now().difference(startedAt).inSeconds;
-      final remaining = (_totalSeconds - elapsed).clamp(0, _totalSeconds);
-      if (mounted) setState(() => _secondsRemaining = remaining);
+      final now = DateTime.now();
+      final elapsedMs = now.difference(startedAt).inMilliseconds;
+      final remainingMs = (totalMs - elapsedMs).clamp(0, totalMs);
+      final remainingSec = (remainingMs / 1000).ceil();
+      final progress =
+          totalMs > 0 ? (remainingMs / totalMs).clamp(0.0, 1.0) : 0.0;
+
+      _smoothProgressNotifier.value = progress;
+      if (_secondsRemaining != remainingSec && mounted) {
+        setState(() => _secondsRemaining = remainingSec);
+      }
     }
 
     tick();
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
+    // Sub-second update for buttery smooth circular rotation
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => tick());
   }
 
   String _formatTime(int sec) {
@@ -85,6 +98,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     _timer?.cancel();
     _timer = null;
     _trackedSessionId = null;
+    _smoothProgressNotifier.value = 0.0;
     await ref.read(activeFocusSessionProvider.notifier).end();
   }
 
@@ -285,13 +299,16 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 SizedBox(
                   width: 220,
                   height: 220,
-                  child: CircularProgressIndicator(
-                    value: _totalSeconds > 0
-                        ? _secondsRemaining / _totalSeconds
-                        : 0,
-                    strokeWidth: 12,
-                    backgroundColor: AppColors.border,
-                    color: AppColors.secondary,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _smoothProgressNotifier,
+                    builder: (context, progress, _) {
+                      return CircularProgressIndicator(
+                        value: progress,
+                        strokeWidth: 12,
+                        backgroundColor: AppColors.border,
+                        color: AppColors.secondary,
+                      );
+                    },
                   ),
                 ),
                 Column(

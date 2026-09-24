@@ -1,7 +1,16 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/user_model.dart';
 import 'core_providers.dart';
+
+/// Broadcast StreamController for level-up events
+final levelUpEventStreamController = StreamController<int>.broadcast();
+
+/// StreamProvider exposing level-up events for UI listeners
+final levelUpEventProvider = StreamProvider<int>((ref) {
+  return levelUpEventStreamController.stream;
+});
 
 final userProvider = AsyncNotifierProvider<UserNotifier, UserModel?>(
   UserNotifier.new,
@@ -35,6 +44,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
       newMaxExp = (newMaxExp * 1.2).round();
     }
 
+    final didLevelUp = newLevel > current.level;
+
     final updated = current.copyWith(
       level: newLevel,
       currentExp: newExp,
@@ -44,6 +55,10 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
 
     await ref.read(databaseHelperProvider).updateUser(updated);
     state = AsyncValue.data(updated);
+
+    if (didLevelUp) {
+      levelUpEventStreamController.add(newLevel);
+    }
   }
 
   Future<bool> spendGold(int amount) async {
