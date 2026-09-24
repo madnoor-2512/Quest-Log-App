@@ -80,6 +80,7 @@ extension ItemRarityX on ItemRarity {
 /// HP/พลังงานสมมติขึ้นมาใหม่):
 /// - focusTimeBonusPercent: ของ "อุปกรณ์" (equipment) ที่สวมใส่อยู่ —
 ///   ตอนเริ่ม Focus session ใหม่ target_duration จะถูกคูณเพิ่มอัตโนมัติ
+/// - parallelQuestSlot: ของ "อุปกรณ์" ที่ปลดล็อกช่อง Concurrent Quest ช่องที่ 3
 /// - extendFocusMinutes: ของ "น้ำยา/เวป" (consumable) ใช้ครั้งเดียว —
 ///   บวกเวลาเพิ่มให้ session โฟกัสที่กำลัง active อยู่ตอนนั้นทันที
 /// - instantExp / instantGold: ของ consumable ใช้ครั้งเดียว — บวก EXP/Gold
@@ -87,6 +88,7 @@ extension ItemRarityX on ItemRarity {
 enum ItemEffectType {
   none,
   focusTimeBonusPercent,
+  parallelQuestSlot,
   extendFocusMinutes,
   instantExp,
   instantGold,
@@ -99,6 +101,8 @@ extension ItemEffectTypeX on ItemEffectType {
         return null;
       case ItemEffectType.focusTimeBonusPercent:
         return 'FOCUS_TIME_BONUS_PERCENT';
+      case ItemEffectType.parallelQuestSlot:
+        return 'PARALLEL_QUEST_SLOT';
       case ItemEffectType.extendFocusMinutes:
         return 'EXTEND_FOCUS_MINUTES';
       case ItemEffectType.instantExp:
@@ -115,6 +119,8 @@ extension ItemEffectTypeX on ItemEffectType {
         return 'ไม่มีผล (แค่เก็บสะสม/ใช้ทั่วไป)';
       case ItemEffectType.focusTimeBonusPercent:
         return 'เพิ่ม Focus Time (%)';
+      case ItemEffectType.parallelQuestSlot:
+        return 'ปลดล็อกช่อง Concurrent Quest ที่ 3';
       case ItemEffectType.extendFocusMinutes:
         return 'ต่อเวลาโฟกัส (นาที)';
       case ItemEffectType.instantExp:
@@ -128,6 +134,8 @@ extension ItemEffectTypeX on ItemEffectType {
     switch (value?.toUpperCase()) {
       case 'FOCUS_TIME_BONUS_PERCENT':
         return ItemEffectType.focusTimeBonusPercent;
+      case 'PARALLEL_QUEST_SLOT':
+        return ItemEffectType.parallelQuestSlot;
       case 'EXTEND_FOCUS_MINUTES':
         return ItemEffectType.extendFocusMinutes;
       case 'INSTANT_EXP':

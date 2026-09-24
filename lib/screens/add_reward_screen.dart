@@ -54,6 +54,7 @@ class _AddRewardScreenState extends ConsumerState<AddRewardScreen> {
         return const [
           ItemEffectType.none,
           ItemEffectType.focusTimeBonusPercent,
+          ItemEffectType.parallelQuestSlot,
         ];
       case RewardCategory.consumable:
         return const [
@@ -71,6 +72,8 @@ class _AddRewardScreenState extends ConsumerState<AddRewardScreen> {
     switch (_effectType) {
       case ItemEffectType.focusTimeBonusPercent:
         return 'เช่น 10 = เพิ่มเวลาโฟกัส 10%';
+      case ItemEffectType.parallelQuestSlot:
+        return 'อุปกรณ์นี้ปลดล็อกช่อง Concurrent Quest ที่ 3';
       case ItemEffectType.extendFocusMinutes:
         return 'เช่น 15 = ต่อเวลาโฟกัส 15 นาที';
       case ItemEffectType.instantExp:
