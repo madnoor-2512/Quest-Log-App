@@ -121,6 +121,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     if (await db.hasHabitCheckinToday(questId, now: current)) {
       throw StateError('เช็กอินเควสต์นี้วันนี้ไปแล้ว');
     }
+    await ref.read(userProvider.notifier).touchDailyStreak(now: current);
     final user = ref.read(userProvider).valueOrNull;
     if (user == null) throw StateError('ไม่มีผู้ใช้ที่กำลังใช้งาน');
     final count = await db.getHabitCheckinCount(questId);
@@ -134,9 +135,11 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       hasRpgClass: user.rpgClass != null,
     );
     final completed = count + 1 >= targetDays;
+    final hpGain = (user.streakCount >= 3) ? 15 : 10;
     final updatedUser = user.withRewards(
       exp: result.awardedExp,
       gold: result.awardedGold,
+      hpGain: hpGain,
     );
     await db.checkInHabitAndUpdateUser(
       questId: questId,
@@ -166,8 +169,24 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     ref.invalidate(weeklyStatsProvider);
   }
 
+  Future<int> failOrAbandonQuest(int questId) async {
+    final db = ref.read(databaseHelperProvider);
+    final quest = await db.getQuestById(questId);
+    if (quest == null) return 0;
+    final damage = quest.difficulty * 8;
+    await ref.read(userProvider.notifier).applyHpDamage(damage);
+    return damage;
+  }
+
   Future<
-    ({int exp, int gold, bool wasCapped, List<AchievementDef> newAchievements})
+    ({
+      int exp,
+      int gold,
+      int hpGained,
+      int overflowGold,
+      bool wasCapped,
+      List<AchievementDef> newAchievements,
+    })
   >
   completeQuest(
     int questId, {
@@ -221,16 +240,25 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     if (user == null) {
       throw StateError('Cannot complete a quest without an active user.');
     }
+
+    // คำนวณการฟื้นฟู HP ตามระดับความยากของเควสต์ + บัฟคนขยัน (Streak >= 3)
+    final baseHeal = quest.difficulty * 5;
+    final hpGain = streakCount >= 3 ? (baseHeal * 1.25).round() : baseHeal;
+    final overflowGold = (user.currentHp + hpGain > user.maxHp)
+        ? (user.currentHp + hpGain) - user.maxHp
+        : 0;
+
     final updatedUser = user.withRewards(
       exp: result.awardedExp,
       gold: result.awardedGold,
+      hpGain: hpGain,
     );
 
     // Mark the quest and award the user's rewards in one transaction.
     await db.completeQuestAndUpdateUser(
       questId: questId,
       awardedExp: result.awardedExp,
-      awardedGold: result.awardedGold,
+      awardedGold: result.awardedGold + overflowGold,
       updatedUser: updatedUser,
     );
     await ref.read(userProvider.notifier).refresh();
@@ -255,7 +283,9 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
 
     return (
       exp: result.awardedExp,
-      gold: result.awardedGold,
+      gold: result.awardedGold + overflowGold,
+      hpGained: hpGain,
+      overflowGold: overflowGold,
       wasCapped: result.wasCapped,
       newAchievements: newAchievements,
     );

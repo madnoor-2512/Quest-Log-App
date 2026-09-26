@@ -62,6 +62,9 @@ class _AddRewardScreenState extends ConsumerState<AddRewardScreen> {
           ItemEffectType.extendFocusMinutes,
           ItemEffectType.instantExp,
           ItemEffectType.instantGold,
+          ItemEffectType.streakRepairHammer,
+          ItemEffectType.freezeStreakShield,
+          ItemEffectType.meltFrozenStreak,
         ];
       case RewardCategory.collectible:
         return const [ItemEffectType.none];
@@ -74,6 +77,12 @@ class _AddRewardScreenState extends ConsumerState<AddRewardScreen> {
         return 'เช่น 10 = เพิ่มเวลาโฟกัส 10%';
       case ItemEffectType.parallelQuestSlot:
         return 'อุปกรณ์นี้ปลดล็อกช่อง Concurrent Quest ที่ 3';
+      case ItemEffectType.streakRepairHammer:
+        return 'กู้คืน Streak หลังขาดต่อเนื่อง 2 วัน';
+      case ItemEffectType.freezeStreakShield:
+        return 'ระบุจำนวนวันที่ต้องการแช่แข็ง (1-3 วัน)';
+      case ItemEffectType.meltFrozenStreak:
+        return 'ละลาย Frozen และเพิ่ม EXP เควสต์ถัดไป 25%';
       case ItemEffectType.extendFocusMinutes:
         return 'เช่น 15 = ต่อเวลาโฟกัส 15 นาที';
       case ItemEffectType.instantExp:

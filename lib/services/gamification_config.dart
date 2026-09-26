@@ -54,6 +54,10 @@ class GamificationConfig {
   static const double concurrentQuestBonus = 0.15; // +15%
   static const int habitDailyExpReward = 30;
   static const int habitDailyGoldReward = 15;
+  static const int streakRepairHammerCost = 350;
+  static const int freezeStreakShieldCost = 200;
+  static const int meltFrozenStreakCost = 100;
+  static const double meltPotionExpBonus = 0.25;
 
   // Inventory — ขยายช่องคลังไอเทมด้วย Gold
   static const int inventoryExpandCost = 150; // Gold ต่อครั้ง

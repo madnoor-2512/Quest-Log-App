@@ -22,6 +22,41 @@ class DailyStatEntry {
   String get dateLabel => '${date.day}/${date.month}';
 }
 
+class HeroStats {
+  final int completedQuests;
+  final int totalQuests;
+  final int focusMinutes;
+  final int totalExpEarned;
+
+  const HeroStats({
+    required this.completedQuests,
+    required this.totalQuests,
+    required this.focusMinutes,
+    required this.totalExpEarned,
+  });
+
+  int get successRate => totalQuests == 0
+      ? 0
+      : ((completedQuests / totalQuests) * 100).round();
+}
+
+final heroStatsProvider = FutureProvider<HeroStats>((ref) async {
+  final quests = await ref.read(databaseHelperProvider).getQuests();
+  final completed = quests.where((quest) => quest.isCompleted).toList();
+  return HeroStats(
+    completedQuests: completed.length,
+    totalQuests: quests.length,
+    focusMinutes: completed.fold(
+      0,
+      (total, quest) => total + quest.estimatedMinutes,
+    ),
+    totalExpEarned: completed.fold(
+      0,
+      (total, quest) => total + (quest.awardedExp ?? quest.expReward),
+    ),
+  );
+});
+
 final weeklyStatsProvider =
     FutureProvider<List<DailyStatEntry>>((ref) async {
   final db = ref.read(databaseHelperProvider);

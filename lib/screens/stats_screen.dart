@@ -12,6 +12,7 @@ class StatsScreen extends ConsumerWidget {
     final userAsync = ref.watch(userProvider);
     final user = userAsync.valueOrNull;
     final weeklyStats = ref.watch(weeklyStatsProvider);
+    final heroStats = ref.watch(heroStatsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -31,36 +32,60 @@ class StatsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
 
-              // Stat Cards
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'เลเวล',
-                      value: '${user?.level ?? 1}',
-                      icon: Icons.military_tech_rounded,
-                      color: AppColors.levelGold,
+              heroStats.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (error, stackTrace) => Text('โหลดสถิติไม่สำเร็จ: $error'),
+                data: (stats) => Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'ความสำเร็จ',
+                            value: '${stats.successRate}%',
+                            icon: Icons.check_circle_outline_rounded,
+                            color: AppColors.primary,
+                            subtitle: '${stats.completedQuests}/${stats.totalQuests} เควสต์',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'เวลาโฟกัส',
+                            value: _formatMinutes(stats.focusMinutes),
+                            icon: Icons.hourglass_top_rounded,
+                            color: AppColors.secondary,
+                            subtitle: '${stats.totalExpEarned} EXP ที่ได้รับ',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'เหรียญทอง',
-                      value: '${user?.gold ?? 0}',
-                      icon: Icons.monetization_on_rounded,
-                      color: AppColors.goldReward,
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'Streak ปัจจุบัน',
+                            value: '${user?.streakDays ?? 0} วัน',
+                            icon: Icons.local_fire_department_rounded,
+                            color: AppColors.streakFlame,
+                            subtitle: 'ทำต่อเนื่อง',
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildStatCard(
+                            title: 'เควสต์เคลียร์แล้ว',
+                            value: '${stats.completedQuests}',
+                            icon: Icons.emoji_events_rounded,
+                            color: AppColors.levelGold,
+                            subtitle: 'เลเวล ${user?.level ?? 1}',
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      title: 'Streak วัน',
-                      value: '${user?.streakDays ?? 0}',
-                      icon: Icons.local_fire_department_rounded,
-                      color: AppColors.streakFlame,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               const SizedBox(height: 24),
 
@@ -142,6 +167,7 @@ class StatsScreen extends ConsumerWidget {
     required String value,
     required IconData icon,
     required Color color,
+    String? subtitle,
   }) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -167,8 +193,23 @@ class StatsScreen extends ConsumerWidget {
             title,
             style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
           ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  String _formatMinutes(int minutes) {
+    if (minutes < 60) return '$minutesนาที';
+    final hours = minutes ~/ 60;
+    final remaining = minutes % 60;
+    return remaining == 0 ? '$hoursชม.' : '$hoursชม. $remainingน.';
   }
 }

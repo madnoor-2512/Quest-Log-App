@@ -7,8 +7,7 @@ import '../providers/rewards_providers.dart';
 import '../providers/user_provider.dart';
 import '../services/gamification_config.dart';
 import '../theme/app_colors.dart';
-import '../widgets/rpg_button.dart';
-import 'add_reward_screen.dart';
+import '../widgets/add_custom_reward_sheet.dart';
 
 Color _rarityColor(ItemRarity rarity) {
   switch (rarity) {
@@ -21,18 +20,30 @@ Color _rarityColor(ItemRarity rarity) {
   }
 }
 
-class RewardsScreen extends ConsumerWidget {
+class RewardsScreen extends ConsumerStatefulWidget {
   final int initialTabIndex;
   const RewardsScreen({super.key, this.initialTabIndex = 0});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RewardsScreen> createState() => _RewardsScreenState();
+}
+
+class _RewardsScreenState extends ConsumerState<RewardsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() => ref.invalidate(rewardsListProvider));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final userAsync = ref.watch(userProvider);
     final user = userAsync.valueOrNull;
 
     return DefaultTabController(
-      length: 2,
-      initialIndex: initialTabIndex,
+      length: 3,
+      initialIndex: widget.initialTabIndex,
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
@@ -83,24 +94,6 @@ class RewardsScreen extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 6),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const AddRewardScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.add_circle_outline_rounded,
-                      size: 18,
-                    ),
-                    label: const Text('เพิ่มของรางวัล'),
-                  ),
-                ),
-                const SizedBox(height: 6),
 
                 const TabBar(
                   labelColor: AppColors.primary,
@@ -108,6 +101,7 @@ class RewardsScreen extends ConsumerWidget {
                   indicatorColor: AppColors.primary,
                   tabs: [
                     Tab(text: 'ร้านค้า'),
+                    Tab(text: 'รางวัลชีวิตจริง'),
                     Tab(text: 'คลังไอเทม'),
                   ],
                 ),
@@ -116,6 +110,7 @@ class RewardsScreen extends ConsumerWidget {
                   child: TabBarView(
                     children: [
                       _ShopTab(user: user),
+                      _RealLifeRewardsTab(user: user),
                       const _InventoryTab(),
                     ],
                   ),
@@ -137,6 +132,17 @@ class _ShopTab extends ConsumerWidget {
   final UserModel? user;
   const _ShopTab({required this.user});
 
+  IconData _categoryIcon(RewardCategory category) {
+    switch (category) {
+      case RewardCategory.equipment:
+        return Icons.shield_rounded;
+      case RewardCategory.consumable:
+        return Icons.science_rounded;
+      case RewardCategory.collectible:
+        return Icons.emoji_events_rounded;
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rewardsAsync = ref.watch(rewardsListProvider);
@@ -146,64 +152,13 @@ class _ShopTab extends ConsumerWidget {
       error: (e, st) => Center(child: Text('ข้อผิดพลาด: $e')),
       data: (rewards) {
         if (rewards.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(
-                  Icons.storefront_outlined,
-                  size: 64,
-                  color: Colors.grey,
-                ),
-                const SizedBox(height: 12),
-                const Text('ยังไม่มีของรางวัลในร้านค้า'),
-                const SizedBox(height: 12),
-                RpgButton(
-                  text: 'เพิ่มของรางวัลตัวอย่าง',
-                  backgroundColor: AppColors.primary,
-                  borderColor: AppColors.primaryDark,
-                  onPressed: () async {
-                    final notifier = ref.read(rewardsListProvider.notifier);
-                    // ตัวอย่างครบ 3 หมวดตาม mockup — equipment (มีผลจริง
-                    // ตอนเริ่ม Focus session), consumable (ใช้แล้วหมด
-                    // ครั้งเดียว มีผลจริง), collectible (แค่เก็บสะสม)
-                    await notifier.addReward(
-                      const RewardModel(
-                        title: 'หูฟัง Lo-Fi',
-                        goldCost: 200,
-                        description: 'เพิ่ม Focus Time +10%',
-                        iconName: 'headphones',
-                        itemCategory: RewardCategory.equipment,
-                        rarity: ItemRarity.rare,
-                        effectType: ItemEffectType.focusTimeBonusPercent,
-                        effectValue: 0.10,
-                      ),
-                    );
-                    await notifier.addReward(
-                      const RewardModel(
-                        title: 'คัมภีร์ยืดเวลา',
-                        goldCost: 60,
-                        description:
-                            'เพิ่มเวลาภารกิจโฟกัส +15 นาที (ใช้ตอนมีเซสชันทำงานอยู่)',
-                        iconName: 'auto_stories',
-                        itemCategory: RewardCategory.consumable,
-                        rarity: ItemRarity.common,
-                        effectType: ItemEffectType.extendFocusMinutes,
-                        effectValue: 15,
-                      ),
-                    );
-                    await notifier.addReward(
-                      const RewardModel(
-                        title: 'เหรียญกล้าหาญ',
-                        goldCost: 500,
-                        description: 'ของสะสมความสำเร็จครบ 7 วันติดต่อกัน',
-                        iconName: 'military_tech',
-                        itemCategory: RewardCategory.collectible,
-                        rarity: ItemRarity.epic,
-                      ),
-                    );
-                  },
-                ),
+                Icon(Icons.storefront_outlined, size: 64, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('กำลังเตรียมรางวัลระบบ...'),
               ],
             ),
           );
@@ -215,34 +170,35 @@ class _ShopTab extends ConsumerWidget {
           itemBuilder: (context, index) {
             final r = rewards[index];
             final canAfford = (user?.gold ?? 0) >= r.goldCost;
+            final rarityClr = _rarityColor(r.rarity);
 
             return Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.cardSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border, width: 2),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border, width: 1.5),
               ),
               child: Row(
                 children: [
+                  // Icon container — same style as inventory
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      borderRadius: BorderRadius.circular(12),
+                      color: rarityClr.withAlpha(35),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: rarityClr, width: 1.5),
                     ),
-                    child: const Icon(
-                      Icons.card_giftcard_rounded,
-                      color: AppColors.primaryDark,
-                    ),
+                    child: Icon(_categoryIcon(r.itemCategory), color: rarityClr),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Title + rarity badge
                         Row(
                           children: [
                             Flexible(
@@ -250,7 +206,7 @@ class _ShopTab extends ConsumerWidget {
                                 r.title,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -262,24 +218,22 @@ class _ShopTab extends ConsumerWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: _rarityColor(r.rarity).withAlpha(35),
+                                color: rarityClr.withAlpha(35),
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: _rarityColor(r.rarity),
-                                  width: 1,
-                                ),
+                                border: Border.all(color: rarityClr, width: 1),
                               ),
                               child: Text(
                                 r.rarity.displayName,
                                 style: TextStyle(
                                   fontSize: 9,
                                   fontWeight: FontWeight.w800,
-                                  color: _rarityColor(r.rarity),
+                                  color: rarityClr,
                                 ),
                               ),
                             ),
                           ],
                         ),
+                        // Category name
                         Text(
                           r.itemCategory.displayName,
                           style: const TextStyle(
@@ -287,6 +241,7 @@ class _ShopTab extends ConsumerWidget {
                             color: AppColors.textMuted,
                           ),
                         ),
+                        // Description
                         if (r.description != null)
                           Text(
                             r.description!,
@@ -294,23 +249,45 @@ class _ShopTab extends ConsumerWidget {
                               color: AppColors.textMuted,
                               fontSize: 12,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${r.goldCost} Gold',
-                          style: const TextStyle(
-                            color: AppColors.goldRewardDark,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        const SizedBox(height: 2),
+                        // Gold cost
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.monetization_on_rounded,
+                              size: 13,
+                              color: AppColors.goldRewardDark,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${r.goldCost} Gold',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.goldRewardDark,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  // Buy button
                   ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: canAfford
                           ? AppColors.secondary
                           : Colors.grey.shade400,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                     onPressed: canAfford
                         ? () async {
@@ -325,6 +302,8 @@ class _ShopTab extends ConsumerWidget {
                                 'เหรียญทองไม่เพียงพอ',
                               RedeemOutcome.inventoryFull =>
                                 'คลังไอเทมเต็มแล้ว ไปขยายช่องคลังที่แท็บ "คลังไอเทม" ก่อน',
+                              RedeemOutcome.purchaseLimitReached =>
+                                'รางวัลนี้ถึงโควตาการแลกในช่วงเวลานี้แล้ว',
                             };
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -337,7 +316,7 @@ class _ShopTab extends ConsumerWidget {
                             );
                           }
                         : null,
-                    child: const Text('แลกรางวัล'),
+                    child: const Text('แลกรางวัล', style: TextStyle(fontSize: 13)),
                   ),
                 ],
               ),
@@ -345,6 +324,127 @@ class _ShopTab extends ConsumerWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _RealLifeRewardsTab extends ConsumerWidget {
+  final UserModel? user;
+  const _RealLifeRewardsTab({required this.user});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rewardsAsync = ref.watch(rewardsListProvider);
+    return rewardsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) => Center(child: Text('ข้อผิดพลาด: $error')),
+      data: (rewards) {
+        final customRewards = rewards.where((reward) => reward.isCustomReward).toList();
+        return Column(
+          children: [
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final reward = await showModalBottomSheet<RewardModel>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: AppColors.background,
+                    builder: (_) => const AddCustomRewardSheet(),
+                  );
+                  if (reward == null || !context.mounted) return;
+                  try {
+                    await ref
+                        .read(rewardsListProvider.notifier)
+                        .addCustomReward(reward);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('เพิ่มรางวัลชีวิตจริงแล้ว')),
+                    );
+                  } catch (error) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('บันทึกไม่สำเร็จ: $error')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('+ เพิ่มรางวัลชีวิตจริง'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: customRewards.isEmpty
+                  ? const Center(
+                      child: Text('ยังไม่มีรางวัลชีวิตจริง เพิ่มเป้าหมายแรกของคุณได้เลย'),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(top: 8),
+                      itemCount: customRewards.length,
+                      itemBuilder: (context, index) => _CustomRewardCard(
+                        reward: customRewards[index],
+                        user: user,
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CustomRewardCard extends ConsumerWidget {
+  final RewardModel reward;
+  final UserModel? user;
+  const _CustomRewardCard({required this.reward, required this.user});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canAfford = (user?.gold ?? 0) >= reward.goldCost;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            const Icon(Icons.auto_awesome_rounded, color: AppColors.secondary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(reward.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  if (reward.description != null) Text(reward.description!),
+                  Text(
+                    '${reward.goldCost} Gold • ${reward.impactLevel.displayName} • ${reward.purchaseLimit.displayName}',
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            FilledButton(
+              onPressed: canAfford
+                  ? () async {
+                      final outcome = await ref
+                          .read(rewardsListProvider.notifier)
+                          .redeem(reward.id!);
+                      if (!context.mounted) return;
+                      final message = switch (outcome) {
+                        RedeemOutcome.success => 'แลกรางวัลสำเร็จ',
+                        RedeemOutcome.notEnoughGold => 'Gold ไม่พอ',
+                        RedeemOutcome.inventoryFull => 'คลังไอเทมเต็ม',
+                        RedeemOutcome.purchaseLimitReached => 'ถึงโควตาการแลกแล้ว',
+                      };
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+                    }
+                  : null,
+              child: const Text('แลก'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

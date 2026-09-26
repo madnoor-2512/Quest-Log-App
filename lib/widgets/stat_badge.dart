@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
-enum StatBadgeType { level, gold, streak }
+enum StatBadgeType { level, gold, streak, gem }
 
-/// Reusable stat badge — Level / Gold / Streak display pill
+/// Reusable stat badge — Level / Gold / Streak / Gem display pill
 class StatBadge extends StatelessWidget {
   final StatBadgeType type;
   final int value;
@@ -63,6 +63,8 @@ class StatBadge extends StatelessWidget {
         return (Icons.monetization_on_rounded, const Color(0xFFB45309), AppColors.goldLight, '');
       case StatBadgeType.streak:
         return (Icons.local_fire_department_rounded, AppColors.secondary, AppColors.secondaryLight, '🔥');
+      case StatBadgeType.gem:
+        return (Icons.diamond_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE), '💎');
     }
   }
 }

@@ -8,6 +8,7 @@ class QuestCard extends StatefulWidget {
   final QuestModel quest;
   final VoidCallback? onComplete;
   final VoidCallback? onStartFocus;
+  final VoidCallback? onStartMindfulness;
   final bool isSelected; // for Focus Screen checklist mode
   final bool isDisabled; // for Focus Screen conflict mode
   final bool checklistMode;
@@ -17,6 +18,7 @@ class QuestCard extends StatefulWidget {
     required this.quest,
     this.onComplete,
     this.onStartFocus,
+    this.onStartMindfulness,
     this.isSelected = false,
     this.isDisabled = false,
     this.checklistMode = false,
@@ -50,6 +52,15 @@ class _QuestCardState extends State<QuestCard>
     super.dispose();
   }
 
+  bool get _isMindfulnessQuest {
+    final titleLower = widget.quest.title.toLowerCase();
+    return widget.quest.activityType == ActivityType.stillness ||
+        titleLower.contains('สมาธิ') ||
+        titleLower.contains('หายใจ') ||
+        titleLower.contains('mindful') ||
+        titleLower.contains('meditat');
+  }
+
   void _handleComplete() async {
     if (_completing) return;
     setState(() => _completing = true);
@@ -69,6 +80,7 @@ class _QuestCardState extends State<QuestCard>
   }
 
   IconData get _activityIcon {
+    if (_isMindfulnessQuest) return Icons.self_improvement_rounded;
     switch (widget.quest.activityType) {
       case ActivityType.physicalHeavy:
         return Icons.fitness_center_rounded;
@@ -83,6 +95,8 @@ class _QuestCardState extends State<QuestCard>
 
   @override
   Widget build(BuildContext context) {
+    final isDone = widget.quest.isCompleted;
+
     return FadeTransition(
       opacity: _fadeAnim,
       child: Opacity(
@@ -92,19 +106,25 @@ class _QuestCardState extends State<QuestCard>
           decoration: BoxDecoration(
             color: widget.isSelected
                 ? AppColors.primaryLight
-                : AppColors.cardSurface,
+                : isDone
+                    ? const Color(0xFFF0FDF4)
+                    : AppColors.cardSurface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: widget.isSelected
                   ? AppColors.primary
-                  : widget.isDisabled
-                      ? AppColors.borderLight
-                      : AppColors.border,
+                  : isDone
+                      ? const Color(0xFF86EFAC)
+                      : widget.isDisabled
+                          ? AppColors.borderLight
+                          : AppColors.border,
               width: widget.isSelected ? 2.5 : 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.shadow,
+                color: isDone
+                    ? const Color(0xFF22C55E).withAlpha(20)
+                    : AppColors.shadow,
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -123,11 +143,20 @@ class _QuestCardState extends State<QuestCard>
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color: _categoryColor.withAlpha(30),
+                        color: isDone
+                            ? const Color(0xFFDCFCE7)
+                            : _categoryColor.withAlpha(30),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _categoryColor, width: 2),
+                        border: Border.all(
+                          color: isDone ? const Color(0xFF16A34A) : _categoryColor,
+                          width: 2,
+                        ),
                       ),
-                      child: Icon(_activityIcon, size: 18, color: _categoryColor),
+                      child: Icon(
+                        isDone ? Icons.check_circle_rounded : _activityIcon,
+                        size: 18,
+                        color: isDone ? const Color(0xFF16A34A) : _categoryColor,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     // Title + category chip
@@ -138,10 +167,10 @@ class _QuestCardState extends State<QuestCard>
                           Text(
                             widget.quest.title,
                             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  decoration: widget.quest.isCompleted
+                                  decoration: isDone
                                       ? TextDecoration.lineThrough
                                       : null,
-                                  color: widget.quest.isCompleted
+                                  color: isDone
                                       ? AppColors.textMuted
                                       : AppColors.textPrimary,
                                 ),
@@ -153,7 +182,7 @@ class _QuestCardState extends State<QuestCard>
                             children: [
                               _CategoryChip(
                                   category: widget.quest.category,
-                                  color: _categoryColor),
+                                  color: isDone ? const Color(0xFF16A34A) : _categoryColor),
                               const SizedBox(width: 6),
                               _DifficultyStars(
                                   difficulty: widget.quest.difficulty),
@@ -201,48 +230,100 @@ class _QuestCardState extends State<QuestCard>
                 // Rewards + buttons row
                 Row(
                   children: [
-                    // EXP reward
-                    _RewardChip(
-                      icon: Icons.star_rounded,
-                      label: '+${widget.quest.expReward} EXP',
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    _RewardChip(
-                      icon: Icons.monetization_on_rounded,
-                      label: '+${widget.quest.goldReward} G',
-                      color: const Color(0xFFB45309),
-                    ),
-                    if (widget.quest.estimatedMinutes > 0) ...[
+                    if (isDone) ...[
+                      // เด้งตัวเลขรางวัลสำหรับเควสต์ที่เสร็จแล้ว
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF86EFAC)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded,
+                                size: 14, color: Color(0xFF15803D)),
+                            const SizedBox(width: 3),
+                            Text(
+                              '+${widget.quest.awardedExp ?? widget.quest.expReward} EXP • +${widget.quest.awardedGold ?? widget.quest.goldReward} Gold',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF15803D),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      const Row(
+                        children: [
+                          Icon(Icons.check_circle_rounded,
+                              color: Color(0xFF16A34A), size: 20),
+                          SizedBox(width: 4),
+                          Text(
+                            'สำเร็จแล้ว',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      // EXP reward
+                      _RewardChip(
+                        icon: Icons.star_rounded,
+                        label: '+${widget.quest.expReward} EXP',
+                        color: AppColors.primary,
+                      ),
                       const SizedBox(width: 6),
                       _RewardChip(
-                        icon: Icons.timer_outlined,
-                        label: '${widget.quest.estimatedMinutes}m',
-                        color: AppColors.textSecondary,
+                        icon: Icons.monetization_on_rounded,
+                        label: '+${widget.quest.goldReward} G',
+                        color: const Color(0xFFB45309),
                       ),
-                    ],
-                    const Spacer(),
-                    // Action buttons
-                    if (!widget.checklistMode && !widget.quest.isCompleted) ...[
-                      if (widget.onStartFocus != null)
-                        _SmallButton(
-                          label: 'Focus',
-                          icon: Icons.center_focus_strong_rounded,
-                          color: AppColors.primary,
-                          onTap: widget.onStartFocus,
+                      if (widget.quest.estimatedMinutes > 0) ...[
+                        const SizedBox(width: 6),
+                        _RewardChip(
+                          icon: Icons.timer_outlined,
+                          label: '${widget.quest.estimatedMinutes}m',
+                          color: AppColors.textSecondary,
                         ),
-                      const SizedBox(width: 6),
-                      if (widget.onComplete != null)
-                        _SmallButton(
-                          label: 'Done',
-                          icon: Icons.check_circle_outline_rounded,
-                          color: AppColors.secondary,
-                          onTap: _handleComplete,
-                        ),
+                      ],
+                      const Spacer(),
+                      // Action buttons
+                      if (!widget.checklistMode) ...[
+                        if (_isMindfulnessQuest) ...[
+                          _SmallButton(
+                            label: 'ฝึก',
+                            icon: Icons.self_improvement_rounded,
+                            color: const Color(0xFF7C3AED), // Calming purple
+                            onTap: widget.onStartMindfulness ?? widget.onStartFocus,
+                          ),
+                          const SizedBox(width: 6),
+                        ] else if (widget.quest.estimatedMinutes > 0 &&
+                            widget.onStartFocus != null) ...[
+                          _SmallButton(
+                            label: 'เริ่ม',
+                            icon: Icons.play_arrow_rounded,
+                            color: const Color(0xFFEA580C), // Brick orange
+                            onTap: widget.onStartFocus,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if (widget.onComplete != null)
+                          _SmallButton(
+                            label: 'เสร็จ',
+                            icon: Icons.check_circle_outline_rounded,
+                            color: AppColors.primaryDark,
+                            onTap: _handleComplete,
+                          ),
+                      ],
                     ],
-                    if (widget.quest.isCompleted)
-                      const Icon(Icons.check_circle_rounded,
-                          color: AppColors.primary, size: 22),
                   ],
                 ),
               ],
