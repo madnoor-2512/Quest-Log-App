@@ -78,12 +78,17 @@ class RewardCalculatorService {
     final diffMult = GamificationConfig.difficultyMultipliers[difficulty]!;
     final actMult = GamificationConfig.activityTypeMultipliers[activityType]!;
 
+    final firstTier = min(estimatedMinutes, 30).toDouble();
+    final secondTier = min(max(estimatedMinutes - 30, 0), 30).toDouble();
+    final thirdTier = max(estimatedMinutes - 60, 0).toDouble();
+    final effectiveMinutes = firstTier + (secondTier * 0.6) + (thirdTier * 0.3);
+    final rewardedSubTasks = min(
+      subTaskCount,
+      GamificationConfig.maxRewardedSubTasks,
+    );
     final rawExp =
-        (estimatedMinutes *
-            GamificationConfig.baseExpPerMinute *
-            diffMult *
-            actMult) +
-        (subTaskCount * GamificationConfig.expPerSubTask);
+      (effectiveMinutes * GamificationConfig.baseExpPerMinute * diffMult * actMult) +
+      (rewardedSubTasks * GamificationConfig.expPerSubTask);
     final rawGold = rawExp * GamificationConfig.goldToExpRatio;
 
     final exp = max(GamificationConfig.minExpReward, rawExp.round());

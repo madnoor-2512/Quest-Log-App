@@ -16,7 +16,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 5;
+  static const int dbVersion = 6;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -27,6 +27,7 @@ class DatabaseHelper {
   static const String tableRedemptions = 'redemptions';
   static const String tableInventoryItems = 'inventory_items';
   static const String tableUnlockedAchievements = 'unlocked_achievements';
+  static const String tableHabitCheckins = 'habit_checkins';
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -108,6 +109,30 @@ class DatabaseHelper {
         );
       ''');
     }
+    if (oldVersion < 6) {
+      await db.execute(
+        "ALTER TABLE $tableQuests ADD COLUMN goal_type TEXT NOT NULL DEFAULT 'FOCUS';",
+      );
+      await db.execute(
+        'ALTER TABLE $tableQuests ADD COLUMN habit_start_minute INTEGER;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableQuests ADD COLUMN habit_end_minute INTEGER;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableQuests ADD COLUMN habit_target_days INTEGER;',
+      );
+      await db.execute('''
+        CREATE TABLE $tableHabitCheckins (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          quest_id INTEGER NOT NULL,
+          checkin_date TEXT NOT NULL,
+          checked_in_at TEXT NOT NULL,
+          UNIQUE (quest_id, checkin_date),
+          FOREIGN KEY (quest_id) REFERENCES $tableQuests (id) ON DELETE CASCADE
+        );
+      ''');
+    }
   }
 
   Future<void> _onConfigure(Database db) async {
@@ -141,6 +166,7 @@ class DatabaseHelper {
         title TEXT NOT NULL,
         description TEXT,
         category TEXT NOT NULL,
+        goal_type TEXT NOT NULL DEFAULT 'FOCUS',
         difficulty INTEGER NOT NULL DEFAULT 1,
         activity_type TEXT NOT NULL,
         estimated_minutes INTEGER NOT NULL DEFAULT 0,
@@ -152,7 +178,10 @@ class DatabaseHelper {
         completed_at TEXT,
         created_at TEXT NOT NULL,
         awarded_exp INTEGER,
-        awarded_gold INTEGER
+        awarded_gold INTEGER,
+        habit_start_minute INTEGER,
+        habit_end_minute INTEGER,
+        habit_target_days INTEGER
       );
     ''');
 
@@ -226,6 +255,17 @@ class DatabaseHelper {
       );
     ''');
 
+    batch.execute('''
+      CREATE TABLE $tableHabitCheckins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quest_id INTEGER NOT NULL,
+        checkin_date TEXT NOT NULL,
+        checked_in_at TEXT NOT NULL,
+        UNIQUE (quest_id, checkin_date),
+        FOREIGN KEY (quest_id) REFERENCES $tableQuests (id) ON DELETE CASCADE
+      );
+    ''');
+
     batch.execute(
       'CREATE INDEX idx_quests_category ON $tableQuests (category);',
     );
@@ -284,6 +324,7 @@ class DatabaseHelper {
       await txn.delete(tableInventoryItems);
       await txn.delete(tableRedemptions);
       await txn.delete(tableUnlockedAchievements);
+      await txn.delete(tableHabitCheckins);
       await txn.delete(tableSessionQuests);
       await txn.delete(tableFocusSessions);
       await txn.delete(tableSubTasks);
@@ -301,6 +342,49 @@ class DatabaseHelper {
     final db = await database;
     return await db.insert(tableQuests, quest.toMap());
   }
+
+  Future<int> getHabitCheckinCount(int questId) async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS count FROM $tableHabitCheckins WHERE quest_id = ?',
+      [questId],
+    );
+    return (result.first['count'] as int?) ?? 0;
+  }
+
+  Future<bool> hasHabitCheckinToday(int questId, {DateTime? now}) async {
+    final today = _dateKey(now ?? DateTime.now());
+    final db = await database;
+    final rows = await db.query(
+      tableHabitCheckins,
+      where: 'quest_id = ? AND checkin_date = ?',
+      whereArgs: [questId, today],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  Future<void> insertHabitCheckin({
+    required int questId,
+    DateTime? now,
+  }) async {
+    final current = now ?? DateTime.now();
+    final db = await database;
+    await db.insert(
+      tableHabitCheckins,
+      {
+        'quest_id': questId,
+        'checkin_date': _dateKey(current),
+        'checked_in_at': current.toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  String _dateKey(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   Future<QuestModel?> getQuestById(int id) async {
     final db = await database;
@@ -427,6 +511,50 @@ class DatabaseHelper {
         throw StateError('Quest $questId not found after completing.');
       }
       return QuestModel.fromMap(maps.first);
+    });
+  }
+
+  Future<void> checkInHabitAndUpdateUser({
+    required int questId,
+    required UserModel updatedUser,
+    DateTime? now,
+    bool completeQuest = false,
+    required int awardedExp,
+    required int awardedGold,
+  }) async {
+    assert(updatedUser.id != null, 'UserModel.id must not be null');
+    final current = now ?? DateTime.now();
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.insert(
+        tableHabitCheckins,
+        {
+          'quest_id': questId,
+          'checkin_date': _dateKey(current),
+          'checked_in_at': current.toIso8601String(),
+        },
+        conflictAlgorithm: ConflictAlgorithm.abort,
+      );
+      final userRows = await txn.update(
+        tableUsers,
+        updatedUser.toMap(),
+        where: 'id = ?',
+        whereArgs: [updatedUser.id],
+      );
+      if (userRows == 0) throw StateError('User not found while checking in.');
+      if (completeQuest) {
+        await txn.update(
+          tableQuests,
+          {
+            'is_completed': 1,
+            'completed_at': current.toIso8601String(),
+            'awarded_exp': awardedExp,
+            'awarded_gold': awardedGold,
+          },
+          where: 'id = ? AND is_completed = 0',
+          whereArgs: [questId],
+        );
+      }
     });
   }
 

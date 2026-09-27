@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/user_model.dart';
 import '../providers/achievements_providers.dart';
-// import '../providers/auth_provider.dart';
 import '../providers/inventory_providers.dart';
 import '../providers/quest_providers.dart';
 import '../providers/user_provider.dart';
