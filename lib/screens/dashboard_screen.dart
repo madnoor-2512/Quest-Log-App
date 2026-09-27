@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -10,7 +9,6 @@ import '../models/quest_model.dart';
 import '../models/user_model.dart';
 import '../providers/focus_providers.dart';
 import '../providers/quest_providers.dart';
-import '../providers/settings_provider.dart';
 import '../providers/user_provider.dart';
 import '../theme/app_avatars.dart';
 import '../theme/app_colors.dart';
@@ -19,7 +17,7 @@ import '../widgets/quest_card.dart';
 import '../widgets/quest_progress_path.dart';
 import '../widgets/stat_badge.dart';
 import 'achievements_screen.dart';
-import 'add_quest_screen.dart';
+import 'add_quest_type_sheet.dart';
 import 'focus_screen.dart';
 import 'member_center_screen.dart';
 import 'rewards_screen.dart';
@@ -110,10 +108,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final screens = [
       _buildHomeDashboard(user),
       const FocusScreen(),
-      AddQuestScreen(
-        showAppBar: false,
-        onSaved: () => setState(() => _currentBottomNav = 0),
-      ),
+      // Index 2 (ปุ่ม +) ไม่ใช่แท็บที่ค้างอยู่บนหน้าจออีกต่อไป — กดแล้ว
+      // จะเปิดป๊อปอัปเลือกประเภทเควสต์ผ่าน showAddQuestTypeSheet() แทน
+      // (ดู onDestinationSelected ด้านล่าง) ช่องนี้จึงไม่ถูกแสดงจริง
+      const SizedBox.shrink(),
       const StatsScreen(),
       const RewardsScreen(),
     ];
@@ -146,7 +144,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             StatBadge(type: StatBadgeType.gem, value: user.gems, compact: true),
             const SizedBox(width: 6),
             // 🪙 เหรียญทอง (Soft Currency)
-            StatBadge(type: StatBadgeType.gold, value: user.gold, compact: true),
+            StatBadge(
+              type: StatBadgeType.gold,
+              value: user.gold,
+              compact: true,
+            ),
             const SizedBox(width: 8),
             // 🔔 กระดิ่งแจ้งเตือน (Notifications & Mindfulness Nudge)
             GestureDetector(
@@ -208,7 +210,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentBottomNav,
-        onDestinationSelected: (i) => setState(() => _currentBottomNav = i),
+        onDestinationSelected: (i) {
+          // ปุ่ม (+) ตรงกลาง — เปิดป๊อปอัปเลือกประเภทภารกิจแทนการสลับแท็บ
+          // ค้างไว้ เพราะ "สร้างเควสต์" เป็นการกระทำครั้งเดียว ไม่ใช่หน้า
+          // ที่ควรอยู่ใน bottom navigation
+          if (i == 2) {
+            showAddQuestTypeSheet(context);
+            return;
+          }
+          setState(() => _currentBottomNav = i);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -324,7 +335,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.diamond_rounded, size: 18, color: Color(0xFF0284C7)),
+                        const Icon(
+                          Icons.diamond_rounded,
+                          size: 18,
+                          color: Color(0xFF0284C7),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           '${user?.gems ?? 0} เพชร',
@@ -349,7 +364,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ),
                     child: Column(
                       children: [
-                        const Icon(Icons.monetization_on_rounded, size: 18, color: Color(0xFFB45309)),
+                        const Icon(
+                          Icons.monetization_on_rounded,
+                          size: 18,
+                          color: Color(0xFFB45309),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           '${user?.gold ?? 0} Gold',
@@ -402,7 +421,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const RewardsScreen(initialTabIndex: 0)),
+                  MaterialPageRoute(
+                    builder: (_) => const RewardsScreen(initialTabIndex: 0),
+                  ),
                 );
               },
             ),
@@ -414,7 +435,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const RewardsScreen(initialTabIndex: 1)),
+                  MaterialPageRoute(
+                    builder: (_) => const RewardsScreen(initialTabIndex: 1),
+                  ),
                 );
               },
             ),
@@ -471,7 +494,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           color: AppColors.textPrimary,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: AppColors.textMuted),
+      trailing: const Icon(
+        Icons.chevron_right_rounded,
+        size: 18,
+        color: AppColors.textMuted,
+      ),
       onTap: onTap,
     );
   }
@@ -479,7 +506,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // ─── Notification Center Modal ─────────────────────────────────────────────
 
   void _showNotificationCenter(BuildContext context, UserModel user) {
-    final dailyQuests = ref.read(questListProvider(QuestFilter.daily)).valueOrNull ?? [];
+    final dailyQuests =
+        ref.read(questListProvider(QuestFilter.daily)).valueOrNull ?? [];
     final pendingCount = dailyQuests.where((q) => !q.isCompleted).length;
     final completedCount = dailyQuests.where((q) => q.isCompleted).length;
 
@@ -516,7 +544,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     color: AppColors.secondary.withAlpha(25),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.notifications_active_rounded, color: AppColors.secondary, size: 22),
+                  child: const Icon(
+                    Icons.notifications_active_rounded,
+                    color: AppColors.secondary,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Text(
@@ -536,7 +568,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               icon: Icons.analytics_outlined,
               iconColor: AppColors.primary,
               title: 'สรุปผลประจำวัน (Daily Summary)',
-              desc: 'วันนี้สำเร็จแล้ว $completedCount ภารกิจ (คงเหลือ $pendingCount) • สตรีคไฟ ${user.streakDays} วัน • พลังชีวิต ${user.currentHp}/${user.maxHp} HP',
+              desc:
+                  'วันนี้สำเร็จแล้ว $completedCount ภารกิจ (คงเหลือ $pendingCount) • สตรีคไฟ ${user.streakDays} วัน • พลังชีวิต ${user.currentHp}/${user.maxHp} HP',
             ),
             const SizedBox(height: 10),
 
@@ -556,7 +589,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               icon: Icons.self_improvement_rounded,
               iconColor: const Color(0xFF7C3AED),
               title: 'การเตือนสติ (Mindfulness & Well-being)',
-              desc: 'อย่าลืมดื่มน้ำสักแก้ว พักสายตา 5 นาที และฝึกหายใจเข้าออกลึกๆ วินัยที่ดีต้องมาพร้อมกับสุขภาพจิตที่ผ่อนคลายนะนักผจญภัย!',
+              desc:
+                  'อย่าลืมดื่มน้ำสักแก้ว พักสายตา 5 นาที และฝึกหายใจเข้าออกลึกๆ วินัยที่ดีต้องมาพร้อมกับสุขภาพจิตที่ผ่อนคลายนะนักผจญภัย!',
             ),
             const SizedBox(height: 18),
 
@@ -680,14 +714,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isCriticalHp
-                  ? AppColors.error.withAlpha((255 * _criticalHpAnimation.value).toInt())
+                  ? AppColors.error.withAlpha(
+                      (255 * _criticalHpAnimation.value).toInt(),
+                    )
                   : AppColors.border,
               width: isCriticalHp ? 2.5 : 2,
             ),
             boxShadow: [
               BoxShadow(
                 color: isCriticalHp
-                    ? AppColors.error.withAlpha((80 * _criticalHpAnimation.value).toInt())
+                    ? AppColors.error.withAlpha(
+                        (80 * _criticalHpAnimation.value).toInt(),
+                      )
                     : AppColors.shadow,
                 blurRadius: isCriticalHp ? 12 : 8,
                 spreadRadius: isCriticalHp ? 1 : 0,
@@ -713,7 +751,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           color: AppColors.primaryLight,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isCriticalHp ? AppColors.error : AppColors.primary,
+                            color: isCriticalHp
+                                ? AppColors.error
+                                : AppColors.primary,
                             width: 3,
                           ),
                         ),
@@ -730,12 +770,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         right: 0,
                         child: Center(
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: isCriticalHp ? AppColors.error : AppColors.primary,
+                              color: isCriticalHp
+                                  ? AppColors.error
+                                  : AppColors.primary,
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(
-                                color: isCriticalHp ? const Color(0xFF991B1B) : AppColors.primaryDark,
+                                color: isCriticalHp
+                                    ? const Color(0xFF991B1B)
+                                    : AppColors.primaryDark,
                                 width: 1.5,
                               ),
                             ),
@@ -765,7 +812,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                           iconColor: AppColors.error,
                           current: currentHp,
                           max: maxHp,
-                          barColor: isCriticalHp ? AppColors.error : const Color(0xFFEF4444),
+                          barColor: isCriticalHp
+                              ? AppColors.error
+                              : const Color(0xFFEF4444),
                           barBgColor: const Color(0xFFFEE2E2),
                           isCritical: isCriticalHp,
                         ),
@@ -784,7 +833,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         // Level up info
                         Row(
                           children: [
-                            const Icon(Icons.auto_awesome_rounded, size: 12, color: AppColors.info),
+                            const Icon(
+                              Icons.auto_awesome_rounded,
+                              size: 12,
+                              color: AppColors.info,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'ปลดล็อกเลเวล ${user.level + 1} (ขยาย Max HP + รับ 💎 5 เพชร)',
@@ -806,7 +859,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               if (isCriticalHp) ...[
                 const SizedBox(height: 10),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFEF2F2),
                     borderRadius: BorderRadius.circular(8),
@@ -814,7 +870,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, size: 16, color: Color(0xFFDC2626)),
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 16,
+                        color: Color(0xFFDC2626),
+                      ),
                       SizedBox(width: 6),
                       Expanded(
                         child: Text(
@@ -840,7 +900,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   // 🌱 สายอาชีพ (Class)
                   Row(
                     children: [
-                      const Icon(Icons.eco_rounded, size: 15, color: Color(0xFF16A34A)),
+                      const Icon(
+                        Icons.eco_rounded,
+                        size: 15,
+                        color: Color(0xFF16A34A),
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         'สาย: $classTitle',
@@ -865,7 +929,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       if (user.streakCount >= 3) ...[
                         const SizedBox(width: 5),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEF3C7),
                             borderRadius: BorderRadius.circular(8),
@@ -883,7 +950,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       ] else if (user.hasStreakDebuff) ...[
                         const SizedBox(width: 5),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFFEE2E2),
                             borderRadius: BorderRadius.circular(8),
@@ -936,7 +1006,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: isCritical ? AppColors.error : AppColors.textSecondary,
+                    color: isCritical
+                        ? AppColors.error
+                        : AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -1023,7 +1095,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.explore_rounded, size: 18, color: AppColors.primaryDark),
+                      const Icon(
+                        Icons.explore_rounded,
+                        size: 18,
+                        color: AppColors.primaryDark,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         'บทที่ 1 : ป่าแห่งความมุ่งมั่น',
@@ -1051,10 +1127,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: completed >= 5 ? const Color(0xFFFEF3C7) : AppColors.primaryLight,
+                  color: completed >= 5
+                      ? const Color(0xFFFEF3C7)
+                      : AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: completed >= 5 ? const Color(0xFFF59E0B) : AppColors.primary,
+                    color: completed >= 5
+                        ? const Color(0xFFF59E0B)
+                        : AppColors.primary,
                     width: 1,
                   ),
                 ),
@@ -1063,7 +1143,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
-                    color: completed >= 5 ? const Color(0xFFB45309) : AppColors.primaryDark,
+                    color: completed >= 5
+                        ? const Color(0xFFB45309)
+                        : AppColors.primaryDark,
                   ),
                 ),
               ),
@@ -1091,7 +1173,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   // ─── Section 4: Daily Quests List ──────────────────────────────────────────
 
-  Widget _buildDailyQuestsSection(AsyncValue<List<QuestModel>> dailyQuestsAsync) {
+  Widget _buildDailyQuestsSection(
+    AsyncValue<List<QuestModel>> dailyQuestsAsync,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1134,7 +1218,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             // Reset Countdown Timer
             Row(
               children: [
-                const Icon(Icons.hourglass_bottom_rounded, size: 14, color: AppColors.textMuted),
+                const Icon(
+                  Icons.hourglass_bottom_rounded,
+                  size: 14,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(width: 3),
                 const Text(
                   'รีเซ็ตใน',
@@ -1216,17 +1304,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   padding: const EdgeInsets.only(bottom: 8),
                   child: QuestCard(
                     quest: quest,
-                    onStartFocus: () {
-                      ref.read(focusSelectionProvider.notifier).clear();
-                      ref.read(focusSelectionProvider.notifier).add(quest);
-                      setState(() => _currentBottomNav = 1);
-                    },
-                    onStartMindfulness: () {
-                      _openBreathingSession(context, quest);
-                    },
-                    onComplete: () async {
-                      await _executeCompleteQuest(quest);
-                    },
+                    // เควสต์โฟกัสมีเฉพาะปุ่ม "โฟกัส/ฝึก" ที่พาไปหน้าโฟกัส
+                    // เท่านั้น เพราะ completeQuest() บังคับให้เควสต์ที่มี
+                    // เวลา (estimated_minutes > 0) ต้องผ่าน Focus Timer
+                    // อย่างน้อย 80% เสมอ กดจบตรงจากหน้าหลักไม่ได้ ส่วน
+                    // เควสต์ทันใจ (Daily Habit) จบได้จากปุ่มเช็กอินที่
+                    // หน้าหลักเท่านั้น (ไม่มีแนวคิด "โฟกัส" ให้เควสประเภทนี้)
+                    onStartFocus: quest.goalType == QuestGoalType.focus
+                        ? () {
+                            ref.read(focusSelectionProvider.notifier).clear();
+                            ref
+                                .read(focusSelectionProvider.notifier)
+                                .add(quest);
+                            setState(() => _currentBottomNav = 1);
+                          }
+                        : null,
+                    onComplete: quest.goalType == QuestGoalType.dailyHabit
+                        ? () async {
+                            await _executeCompleteQuest(quest);
+                          }
+                        : null,
                   ),
                 );
               }).toList(),
@@ -1237,97 +1334,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  // ─── Quest Completion Logic ────────────────────────────────────────────────
+  // ─── Quest Completion Logic (เควสต์ทันใจ / Daily Habit เท่านั้น) ──────────
+  // เควสต์โฟกัสจบได้เฉพาะผ่าน Focus Timer ในหน้าโฟกัส (ดู
+  // FocusScreen._completeSessionQuest / _completeDueQuests) ฟังก์ชันนี้จึง
+  // เหลือแค่เส้นทางเช็กอินของ Daily Habit เท่านั้น
 
   Future<void> _executeCompleteQuest(QuestModel quest) async {
-    if (quest.goalType == QuestGoalType.dailyHabit) {
-      try {
-        final result = await ref
-            .read(questActionsProvider.notifier)
-            .checkInHabit(quest.id!);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'เช็กอินสำเร็จ วันที่ ${result.day}! ได้รับ '
-              '+${result.exp} EXP, +${result.gold} Gold (❤️ ฟื้นฟู HP)'
-              '${result.completed ? ' เควสต์ Habit สำเร็จครบเป้าหมายแล้ว!' : ''}',
-            ),
-            backgroundColor: AppColors.primaryDark,
-          ),
-        );
-      } catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เช็กอินไม่สำเร็จ: $error'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-      return;
-    }
-
-    if (quest.estimatedMinutes > 0) {
+    if (quest.goalType != QuestGoalType.dailyHabit) return;
+    try {
+      final result = await ref
+          .read(questActionsProvider.notifier)
+          .checkInHabit(quest.id!);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'เควสต์ที่มีเวลาต้องทำผ่าน Focus Timer อย่างน้อย 80% ก่อน',
+            'เช็กอินสำเร็จ วันที่ ${result.day}! ได้รับ '
+            '+${result.exp} EXP, +${result.gold} Gold (❤️ ฟื้นฟู HP)'
+            '${result.completed ? ' เควสต์ Habit สำเร็จครบเป้าหมายแล้ว!' : ''}',
           ),
+          backgroundColor: AppColors.primaryDark,
         ),
       );
-      return;
-    }
-
-    final result = await ref
-        .read(questActionsProvider.notifier)
-        .completeQuest(quest.id!);
-    final settings = ref.read(settingsProvider).valueOrNull;
-    if (settings?.soundEnabled ?? true) {
-      await SystemSound.play(SystemSoundType.click);
-    }
-    if (settings?.vibrationEnabled ?? true) {
-      await HapticFeedback.mediumImpact();
-    }
-    if (!mounted) return;
-
-    final overflowNote = result.overflowGold > 0
-        ? ' (โบนัส HP เต็ม! แปลงเป็น +${result.overflowGold} Gold)'
-        : ' (❤️ +${result.hpGained} HP)';
-    final capNote = result.wasCapped
-        ? ' (ถึงเพดานรางวัลวันนี้แล้ว ได้น้อยกว่าปกติ)'
-        : '';
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'สำเร็จเควส "${quest.title}"! ได้รับ +${result.exp} EXP, '
-          '+${result.gold} Gold$overflowNote$capNote',
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เช็กอินไม่สำเร็จ: $error'),
+          backgroundColor: AppColors.error,
         ),
-        backgroundColor: result.wasCapped
-            ? AppColors.secondary
-            : AppColors.primaryDark,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  // ─── Guided Breathing Session (Mindfulness) ────────────────────────────────
-
-  void _openBreathingSession(BuildContext context, QuestModel quest) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _BreathingModal(
-        quest: quest,
-        onFinished: () async {
-          Navigator.pop(ctx);
-          await _executeCompleteQuest(quest);
-        },
-      ),
-    );
+      );
+    }
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -1343,7 +1380,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
   }
 
-  Widget _buildFilterTab(String label, int index, AsyncValue<List<QuestModel>>? questsAsync) {
+  Widget _buildFilterTab(
+    String label,
+    int index,
+    AsyncValue<List<QuestModel>>? questsAsync,
+  ) {
     final isSelected = _dailyFilterIndex == index;
     String? countText;
     if (questsAsync != null) {
@@ -1399,189 +1440,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ─── Guided Breathing Modal Widget ───────────────────────────────────────────
-
-class _BreathingModal extends StatefulWidget {
-  final QuestModel quest;
-  final VoidCallback onFinished;
-
-  const _BreathingModal({required this.quest, required this.onFinished});
-
-  @override
-  State<_BreathingModal> createState() => _BreathingModalState();
-}
-
-class _BreathingModalState extends State<_BreathingModal>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _breatheController;
-  late Animation<double> _breatheScale;
-  String _breathePhase = 'หายใจเข้าช้าๆ...';
-  int _secondsRemaining = 60; // 1 minute quick session
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _breatheController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    );
-
-    _breatheScale = Tween<double>(begin: 0.8, end: 1.25).animate(
-      CurvedAnimation(parent: _breatheController, curve: Curves.easeInOut),
-    );
-
-    _breatheController.addStatusListener((status) {
-      if (!mounted) return;
-      if (status == AnimationStatus.completed) {
-        setState(() => _breathePhase = 'ผ่อนลมหายใจออก...');
-        _breatheController.reverse();
-      } else if (status == AnimationStatus.dismissed) {
-        setState(() => _breathePhase = 'หายใจเข้าช้าๆ...');
-        _breatheController.forward();
-      }
-    });
-
-    _breatheController.forward();
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) return;
-      if (_secondsRemaining > 0) {
-        setState(() => _secondsRemaining--);
-      } else {
-        t.cancel();
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _breatheController.dispose();
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 44,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey.shade300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '🧘 ฝึกสติและสมาธิ',
-            style: GoogleFonts.prompt(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF7C3AED),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.quest.title,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 28),
-
-          // Breathing Circle Animation
-          SizedBox(
-            height: 160,
-            child: Center(
-              child: AnimatedBuilder(
-                animation: _breatheScale,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _breatheScale.value,
-                    child: Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
-                        ),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF8B5CF6).withAlpha(120),
-                            blurRadius: 20 * _breatheScale.value,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.self_improvement_rounded,
-                          size: 48,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 18),
-          Text(
-            _breathePhase,
-            style: GoogleFonts.prompt(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF6D28D9),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'เวลาฝึกที่เหลือ: ${_secondsRemaining}s',
-            style: GoogleFonts.jetBrainsMono(
-              fontSize: 13,
-              color: AppColors.textMuted,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: widget.onFinished,
-              icon: const Icon(Icons.check_circle_rounded),
-              label: const Text('เสร็จสิ้นการฝึก & รับรางวัล'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
       ),
     );
   }

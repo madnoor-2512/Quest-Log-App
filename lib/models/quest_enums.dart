@@ -7,10 +7,10 @@ extension QuestGoalTypeX on QuestGoalType {
   String get dbValue => this == QuestGoalType.focus ? 'FOCUS' : 'DAILY_HABIT';
 
   String get displayName =>
-    this == QuestGoalType.focus ? 'Focus Quest' : 'Daily Habit / Check-in';
+      this == QuestGoalType.focus ? 'Focus Quest' : 'Daily Habit / Check-in';
 
   static QuestGoalType fromDb(String? value) =>
-    value == 'DAILY_HABIT' ? QuestGoalType.dailyHabit : QuestGoalType.focus;
+      value == 'DAILY_HABIT' ? QuestGoalType.dailyHabit : QuestGoalType.focus;
 }
 
 extension QuestCategoryX on QuestCategory {
@@ -46,6 +46,59 @@ extension QuestCategoryX on QuestCategory {
         return QuestCategory.daily;
       default:
         throw ArgumentError('Unknown QuestCategory: $value');
+    }
+  }
+}
+
+/// ความถี่ในการทำ "เควสต์ทันใจ" (Daily Habit) — กำหนดว่าวันไหนบ้างใน
+/// สัปดาห์ที่เควสต์นี้ควรถูกเช็กอิน เลือกได้จากหน้าสร้างเควสต์ทันใจ
+enum HabitFrequency { daily, weekdays, custom }
+
+extension HabitFrequencyX on HabitFrequency {
+  String get dbValue {
+    switch (this) {
+      case HabitFrequency.daily:
+        return 'DAILY';
+      case HabitFrequency.weekdays:
+        return 'WEEKDAYS';
+      case HabitFrequency.custom:
+        return 'CUSTOM';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case HabitFrequency.daily:
+        return 'ทุกวัน';
+      case HabitFrequency.weekdays:
+        return 'จันทร์-ศุกร์';
+      case HabitFrequency.custom:
+        return 'กำหนดเอง';
+    }
+  }
+
+  /// วันในสัปดาห์ (ISO weekday: 1=จันทร์ ... 7=อาทิตย์) ที่ควรทำเควสต์
+  /// ตามความถี่ที่เลือกไว้ — ใช้ได้เฉพาะ daily/weekdays ที่เป็นชุดวันตายตัว
+  /// ส่วน custom ผู้ใช้เลือกเองผ่าน QuestModel.habitCustomWeekdays
+  List<int> get fixedWeekdays {
+    switch (this) {
+      case HabitFrequency.daily:
+        return const [1, 2, 3, 4, 5, 6, 7];
+      case HabitFrequency.weekdays:
+        return const [1, 2, 3, 4, 5];
+      case HabitFrequency.custom:
+        return const [];
+    }
+  }
+
+  static HabitFrequency fromDb(String? value) {
+    switch (value) {
+      case 'WEEKDAYS':
+        return HabitFrequency.weekdays;
+      case 'CUSTOM':
+        return HabitFrequency.custom;
+      default:
+        return HabitFrequency.daily;
     }
   }
 }

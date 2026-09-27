@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../models/focus_session_model.dart';
+import '../models/quest_enums.dart';
 import '../models/quest_model.dart';
 import '../providers/core_providers.dart';
 import '../providers/focus_providers.dart';
@@ -140,7 +141,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       final pendingQuests = quests.where((quest) {
         final duration = quest.estimatedMinutes > 0
             ? quest.estimatedMinutes * 60
-          : session!.targetDuration;
+            : session!.targetDuration;
         return !quest.isCompleted && elapsedSeconds >= duration;
       }).toList();
       final isConcurrent = quests.length > 1;
@@ -170,10 +171,10 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 ? 'เซสชันเสร็จสิ้น เควสต์ทั้งหมดสำเร็จแล้ว'
                 : isConcurrent
                 ? 'หมดเวลาแล้ว! Multitasking Adventurer: สำเร็จ '
-                  '${pendingQuests.length} เควสต์ ได้รับ +$totalExp EXP, '
-                  '+$totalGold Gold รวม Combo Bonus +15%'
+                      '${pendingQuests.length} เควสต์ ได้รับ +$totalExp EXP, '
+                      '+$totalGold Gold รวม Combo Bonus +15%'
                 : 'หมดเวลาแล้ว! สำเร็จ ${pendingQuests.length} เควสต์ '
-                  'ได้รับ +$totalExp EXP, +$totalGold Gold',
+                      'ได้รับ +$totalExp EXP, +$totalGold Gold',
           ),
           backgroundColor: AppColors.primaryDark,
           duration: const Duration(seconds: 4),
@@ -221,7 +222,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       }
       ref.invalidate(activeSessionQuestsProvider);
 
-      final remainingQuests = await ref.read(activeSessionQuestsProvider.future);
+      final remainingQuests = await ref.read(
+        activeSessionQuestsProvider.future,
+      );
       if (remainingQuests.every((quest) => quest.isCompleted)) {
         await ref.read(activeFocusSessionProvider.notifier).end();
         _timer?.cancel();
@@ -270,10 +273,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     final sessionQuests = await ref.read(activeSessionQuestsProvider.future);
     final result = await ref
         .read(questActionsProvider.notifier)
-        .completeQuest(
-          quest.id!,
-          isConcurrent: sessionQuests.length > 1,
-        );
+        .completeQuest(quest.id!, isConcurrent: sessionQuests.length > 1);
     final settings = ref.read(settingsProvider).valueOrNull;
     if (settings?.soundEnabled ?? true) {
       await SystemSound.play(SystemSoundType.click);
@@ -351,11 +351,18 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
             child: questsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, st) => Center(child: Text('ข้อผิดพลาด: $e')),
-              data: (quests) {
+              data: (allQuests) {
+                // หน้าโฟกัสรับได้เฉพาะ "เควสต์โฟกัส" (goalType == focus)
+                // เท่านั้น — "เควสต์ทันใจ" (Daily Habit) จบเควสต์ผ่านปุ่ม
+                // เช็กอินที่หน้าหลักเท่านั้น การส่งเข้ามาที่นี่แล้วพยายาม
+                // completeQuest() ตอนจบเซสชันจะ throw StateError เสมอ
+                final quests = allQuests
+                    .where((q) => q.goalType == QuestGoalType.focus)
+                    .toList();
                 if (quests.isEmpty) {
                   return const Center(
                     child: Text(
-                      'ไม่มีเควสที่เปิดอยู่ ให้เพิ่มเควสในหน้าแรกก่อน',
+                      'ไม่มีเควสโฟกัสที่เปิดอยู่ ให้เพิ่มเควสโฟกัสในหน้าแรกก่อน',
                     ),
                   );
                 }
@@ -369,9 +376,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                     .toList();
                 if (compatibleQuests.isEmpty) {
                   return const Center(
-                    child: Text(
-                      'ไม่มีเควสต์ที่ทำพร้อมกันได้กับรายการที่เลือก',
-                    ),
+                    child: Text('ไม่มีเควสต์ที่ทำพร้อมกันได้กับรายการที่เลือก'),
                   );
                 }
                 return ListView.builder(
@@ -408,9 +413,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 (longest, q) =>
                     q.estimatedMinutes > longest ? q.estimatedMinutes : longest,
               );
-              final effectiveMinutes = longestMinutes > 0
-                  ? longestMinutes
-                  : 5;
+              final effectiveMinutes = longestMinutes > 0 ? longestMinutes : 5;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,8 +432,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                   const SizedBox(height: 8),
                   RpgButton(
                     text: selected.length > 1
-                      ? 'Start Concurrent Focus'
-                      : 'Start Focus',
+                        ? 'Start Concurrent Focus'
+                        : 'Start Focus',
                     backgroundColor: AppColors.primary,
                     borderColor: AppColors.primaryDark,
                     width: double.infinity,
@@ -489,8 +492,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 if (quests.isEmpty) {
                   return const Center(child: Text('ไม่มีเควสในเซสชันนี้'));
                 }
-                final completedCount =
-                    quests.where((quest) => quest.isCompleted).length;
+                final completedCount = quests
+                    .where((quest) => quest.isCompleted)
+                    .length;
                 final progress = completedCount / quests.length;
                 return ListView.builder(
                   itemCount: quests.length + 1,
@@ -546,8 +550,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                     final q = quests[index - 1];
                     final elapsedSeconds = _totalSeconds - _secondsRemaining;
                     final questProgress = q.isCompleted
-                      ? 1.0
-                      : _questProgress(q, elapsedSeconds, session);
+                        ? 1.0
+                        : _questProgress(q, elapsedSeconds, session);
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -607,10 +611,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
     );
   }
 
-  Widget _buildTimerRings(
-    FocusSessionModel session,
-    List<QuestModel> quests,
-  ) {
+  Widget _buildTimerRings(FocusSessionModel session, List<QuestModel> quests) {
     final elapsedSeconds = _totalSeconds - _secondsRemaining;
     final isConcurrent = quests.length > 1;
     final ringColors = [
@@ -673,8 +674,8 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                   _secondsRemaining <= 0
                       ? 'หมดเวลาแล้ว!'
                       : isConcurrent
-                          ? '${quests.length} เควสต์กำลังทำพร้อมกัน'
-                          : 'กำลังโฟกัส...',
+                      ? '${quests.length} เควสต์กำลังทำพร้อมกัน'
+                      : 'กำลังโฟกัส...',
                   style: const TextStyle(
                     color: AppColors.textMuted,
                     fontWeight: FontWeight.w600,

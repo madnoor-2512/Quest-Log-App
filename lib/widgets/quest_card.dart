@@ -8,7 +8,6 @@ class QuestCard extends StatefulWidget {
   final QuestModel quest;
   final VoidCallback? onComplete;
   final VoidCallback? onStartFocus;
-  final VoidCallback? onStartMindfulness;
   final bool isSelected; // for Focus Screen checklist mode
   final bool isDisabled; // for Focus Screen conflict mode
   final bool checklistMode;
@@ -18,7 +17,6 @@ class QuestCard extends StatefulWidget {
     required this.quest,
     this.onComplete,
     this.onStartFocus,
-    this.onStartMindfulness,
     this.isSelected = false,
     this.isDisabled = false,
     this.checklistMode = false,
@@ -41,9 +39,10 @@ class _QuestCardState extends State<QuestCard>
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
-    _fadeAnim = Tween<double>(begin: 1, end: 0).animate(
-      CurvedAnimation(parent: _completeCtrl, curve: Curves.easeOut),
-    );
+    _fadeAnim = Tween<double>(
+      begin: 1,
+      end: 0,
+    ).animate(CurvedAnimation(parent: _completeCtrl, curve: Curves.easeOut));
   }
 
   @override
@@ -107,17 +106,17 @@ class _QuestCardState extends State<QuestCard>
             color: widget.isSelected
                 ? AppColors.primaryLight
                 : isDone
-                    ? const Color(0xFFF0FDF4)
-                    : AppColors.cardSurface,
+                ? const Color(0xFFF0FDF4)
+                : AppColors.cardSurface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: widget.isSelected
                   ? AppColors.primary
                   : isDone
-                      ? const Color(0xFF86EFAC)
-                      : widget.isDisabled
-                          ? AppColors.borderLight
-                          : AppColors.border,
+                  ? const Color(0xFF86EFAC)
+                  : widget.isDisabled
+                  ? AppColors.borderLight
+                  : AppColors.border,
               width: widget.isSelected ? 2.5 : 2,
             ),
             boxShadow: [
@@ -148,14 +147,18 @@ class _QuestCardState extends State<QuestCard>
                             : _categoryColor.withAlpha(30),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: isDone ? const Color(0xFF16A34A) : _categoryColor,
+                          color: isDone
+                              ? const Color(0xFF16A34A)
+                              : _categoryColor,
                           width: 2,
                         ),
                       ),
                       child: Icon(
                         isDone ? Icons.check_circle_rounded : _activityIcon,
                         size: 18,
-                        color: isDone ? const Color(0xFF16A34A) : _categoryColor,
+                        color: isDone
+                            ? const Color(0xFF16A34A)
+                            : _categoryColor,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -166,7 +169,8 @@ class _QuestCardState extends State<QuestCard>
                         children: [
                           Text(
                             widget.quest.title,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
                                   decoration: isDone
                                       ? TextDecoration.lineThrough
                                       : null,
@@ -181,11 +185,15 @@ class _QuestCardState extends State<QuestCard>
                           Row(
                             children: [
                               _CategoryChip(
-                                  category: widget.quest.category,
-                                  color: isDone ? const Color(0xFF16A34A) : _categoryColor),
+                                category: widget.quest.category,
+                                color: isDone
+                                    ? const Color(0xFF16A34A)
+                                    : _categoryColor,
+                              ),
                               const SizedBox(width: 6),
                               _DifficultyStars(
-                                  difficulty: widget.quest.difficulty),
+                                difficulty: widget.quest.difficulty,
+                              ),
                             ],
                           ),
                         ],
@@ -209,8 +217,11 @@ class _QuestCardState extends State<QuestCard>
                           ),
                         ),
                         child: widget.isSelected
-                            ? const Icon(Icons.check_rounded,
-                                size: 16, color: Colors.white)
+                            ? const Icon(
+                                Icons.check_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              )
                             : null,
                       ),
                   ],
@@ -234,7 +245,9 @@ class _QuestCardState extends State<QuestCard>
                       // เด้งตัวเลขรางวัลสำหรับเควสต์ที่เสร็จแล้ว
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFDCFCE7),
                           borderRadius: BorderRadius.circular(10),
@@ -243,8 +256,11 @@ class _QuestCardState extends State<QuestCard>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded,
-                                size: 14, color: Color(0xFF15803D)),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 14,
+                              color: Color(0xFF15803D),
+                            ),
                             const SizedBox(width: 3),
                             Text(
                               '+${widget.quest.awardedExp ?? widget.quest.expReward} EXP • +${widget.quest.awardedGold ?? widget.quest.goldReward} Gold',
@@ -260,8 +276,11 @@ class _QuestCardState extends State<QuestCard>
                       const Spacer(),
                       const Row(
                         children: [
-                          Icon(Icons.check_circle_rounded,
-                              color: Color(0xFF16A34A), size: 20),
+                          Icon(
+                            Icons.check_circle_rounded,
+                            color: Color(0xFF16A34A),
+                            size: 20,
+                          ),
                           SizedBox(width: 4),
                           Text(
                             'สำเร็จแล้ว',
@@ -297,24 +316,25 @@ class _QuestCardState extends State<QuestCard>
                       const Spacer(),
                       // Action buttons
                       if (!widget.checklistMode) ...[
-                        if (_isMindfulnessQuest) ...[
-                          _SmallButton(
-                            label: 'ฝึก',
-                            icon: Icons.self_improvement_rounded,
-                            color: const Color(0xFF7C3AED), // Calming purple
-                            onTap: widget.onStartMindfulness ?? widget.onStartFocus,
-                          ),
-                          const SizedBox(width: 6),
-                        ] else if (widget.quest.estimatedMinutes > 0 &&
+                        // เควสต์ที่มีเวลา (ทุกเควสต์โฟกัส) มีปุ่มเดียว:
+                        // "โฟกัส" (หรือ "ฝึก" สำหรับกิจกรรมสงบนิ่ง) ที่พา
+                        // ไปหน้าโฟกัสเสมอ — จบเควสต์โฟกัสตรงจากปุ่มนี้ไม่ได้
+                        if (widget.quest.estimatedMinutes > 0 &&
                             widget.onStartFocus != null) ...[
                           _SmallButton(
-                            label: 'เริ่ม',
-                            icon: Icons.play_arrow_rounded,
-                            color: const Color(0xFFEA580C), // Brick orange
+                            label: _isMindfulnessQuest ? 'ฝึก' : 'เริ่ม',
+                            icon: _isMindfulnessQuest
+                                ? Icons.self_improvement_rounded
+                                : Icons.play_arrow_rounded,
+                            color: _isMindfulnessQuest
+                                ? const Color(0xFF7C3AED) // Calming purple
+                                : const Color(0xFFEA580C), // Brick orange
                             onTap: widget.onStartFocus,
                           ),
                           const SizedBox(width: 6),
                         ],
+                        // ปุ่ม "เสร็จ" (จบตรง) มีเฉพาะเควสต์ทันใจ (Daily
+                        // Habit) ที่เช็กอินได้จากหน้าหลักเท่านั้น
                         if (widget.onComplete != null)
                           _SmallButton(
                             label: 'เสร็จ',
@@ -387,7 +407,11 @@ class _RewardChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final Color color;
-  const _RewardChip({required this.icon, required this.label, required this.color});
+  const _RewardChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +422,11 @@ class _RewardChip extends StatelessWidget {
         const SizedBox(width: 2),
         Text(
           label,
-          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color),
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
         ),
       ],
     );
@@ -410,7 +438,12 @@ class _SmallButton extends StatefulWidget {
   final IconData icon;
   final Color color;
   final VoidCallback? onTap;
-  const _SmallButton({required this.label, required this.icon, required this.color, this.onTap});
+  const _SmallButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    this.onTap,
+  });
 
   @override
   State<_SmallButton> createState() => _SmallButtonState();
@@ -438,16 +471,27 @@ class _SmallButtonState extends State<_SmallButton> {
           border: Border.all(color: AppColors.border, width: 1.5),
           boxShadow: _pressed
               ? []
-              : [BoxShadow(color: widget.color.withAlpha(60), blurRadius: 4, offset: const Offset(0, 2))],
+              : [
+                  BoxShadow(
+                    color: widget.color.withAlpha(60),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(widget.icon, size: 12, color: Colors.white),
             const SizedBox(width: 3),
-            Text(widget.label,
-                style: const TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.w800, color: Colors.white)),
+            Text(
+              widget.label,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
+            ),
           ],
         ),
       ),
