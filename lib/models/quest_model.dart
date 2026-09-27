@@ -21,6 +21,8 @@ class QuestModel {
   final int? habitStartMinute;
   final int? habitEndMinute;
   final int? habitTargetDays;
+  final HabitFrequency habitFrequency;
+  final List<int>? habitCustomWeekdays; // ISO weekday (1=จันทร์ ... 7=อาทิตย์)
 
   const QuestModel({
     this.id,
@@ -43,8 +45,20 @@ class QuestModel {
     this.habitStartMinute,
     this.habitEndMinute,
     this.habitTargetDays,
-  }) : assert(difficulty >= 1 && difficulty <= 5,
-            'difficulty must be between 1 and 5');
+    this.habitFrequency = HabitFrequency.daily,
+    this.habitCustomWeekdays,
+  }) : assert(
+         difficulty >= 1 && difficulty <= 5,
+         'difficulty must be between 1 and 5',
+       );
+
+  /// วันในสัปดาห์ (ISO weekday: 1=จันทร์ ... 7=อาทิตย์) ที่เควสต์นี้ควรถูก
+  /// เช็กอินจริง — ได้จาก [habitFrequency] ยกเว้นตอน custom ที่ใช้
+  /// [habitCustomWeekdays] ที่ผู้ใช้เลือกเอง ว่างเปล่า = ไม่จำกัดวัน
+  List<int> get effectiveHabitWeekdays =>
+      habitFrequency == HabitFrequency.custom
+      ? (habitCustomWeekdays ?? const [])
+      : habitFrequency.fixedWeekdays;
 
   QuestModel copyWith({
     int? id,
@@ -67,6 +81,8 @@ class QuestModel {
     int? habitStartMinute,
     int? habitEndMinute,
     int? habitTargetDays,
+    HabitFrequency? habitFrequency,
+    List<int>? habitCustomWeekdays,
   }) {
     return QuestModel(
       id: id ?? this.id,
@@ -89,6 +105,8 @@ class QuestModel {
       habitStartMinute: habitStartMinute ?? this.habitStartMinute,
       habitEndMinute: habitEndMinute ?? this.habitEndMinute,
       habitTargetDays: habitTargetDays ?? this.habitTargetDays,
+      habitFrequency: habitFrequency ?? this.habitFrequency,
+      habitCustomWeekdays: habitCustomWeekdays ?? this.habitCustomWeekdays,
     );
   }
 
@@ -114,6 +132,8 @@ class QuestModel {
       'habit_start_minute': habitStartMinute,
       'habit_end_minute': habitEndMinute,
       'habit_target_days': habitTargetDays,
+      'habit_frequency': habitFrequency.dbValue,
+      'habit_weekdays': habitCustomWeekdays?.join(','),
     };
   }
 
@@ -139,6 +159,14 @@ class QuestModel {
       habitStartMinute: map['habit_start_minute'] as int?,
       habitEndMinute: map['habit_end_minute'] as int?,
       habitTargetDays: map['habit_target_days'] as int?,
+      habitFrequency: HabitFrequencyX.fromDb(map['habit_frequency'] as String?),
+      habitCustomWeekdays:
+          (map['habit_weekdays'] as String?)?.isNotEmpty == true
+          ? (map['habit_weekdays'] as String)
+                .split(',')
+                .map((s) => int.parse(s))
+                .toList()
+          : null,
     );
   }
 

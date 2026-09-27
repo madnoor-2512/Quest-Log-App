@@ -17,7 +17,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 11;
+  static const int dbVersion = 12;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -179,15 +179,51 @@ class DatabaseHelper {
       );
     }
     if (oldVersion < 11) {
-      await db.execute(
-        'ALTER TABLE $tableUsers ADD COLUMN gems INTEGER NOT NULL DEFAULT 10;',
+      await _addColumnIfMissing(
+        db,
+        tableUsers,
+        'gems',
+        'INTEGER NOT NULL DEFAULT 10',
       );
-      await db.execute(
-        'ALTER TABLE $tableUsers ADD COLUMN current_hp INTEGER NOT NULL DEFAULT 100;',
+      await _addColumnIfMissing(
+        db,
+        tableUsers,
+        'current_hp',
+        'INTEGER NOT NULL DEFAULT 100',
       );
-      await db.execute(
-        'ALTER TABLE $tableUsers ADD COLUMN max_hp INTEGER NOT NULL DEFAULT 100;',
+      await _addColumnIfMissing(
+        db,
+        tableUsers,
+        'max_hp',
+        'INTEGER NOT NULL DEFAULT 100',
       );
+    }
+    if (oldVersion < 12) {
+      // หน้าสร้าง "เควสต์ทันใจ" แบบใหม่เพิ่มตัวเลือกความถี่รายสัปดาห์
+      // (ทุกวัน / จันทร์-ศุกร์ / กำหนดเอง) ให้ Daily Habit — เก็บเป็น
+      // habit_frequency + habit_weekdays (comma-separated ISO weekday
+      // เฉพาะตอนกำหนดเอง) ค่าเริ่มต้น DAILY ทำให้เควสต์เก่าที่มีอยู่แล้ว
+      // ยังเช็กอินได้ทุกวันเหมือนเดิม ไม่กระทบพฤติกรรมเดิม
+      await _addColumnIfMissing(
+        db,
+        tableQuests,
+        'habit_frequency',
+        "TEXT NOT NULL DEFAULT 'DAILY'",
+      );
+      await _addColumnIfMissing(db, tableQuests, 'habit_weekdays', 'TEXT');
+    }
+  }
+
+  Future<void> _addColumnIfMissing(
+    Database db,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = columns.any((row) => row['name'] == column);
+    if (!exists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $definition;');
     }
   }
 
@@ -247,7 +283,9 @@ class DatabaseHelper {
         awarded_gold INTEGER,
         habit_start_minute INTEGER,
         habit_end_minute INTEGER,
-        habit_target_days INTEGER
+        habit_target_days INTEGER,
+        habit_frequency TEXT NOT NULL DEFAULT 'DAILY',
+        habit_weekdays TEXT
       );
     ''');
 
@@ -434,21 +472,14 @@ class DatabaseHelper {
     return rows.isNotEmpty;
   }
 
-  Future<void> insertHabitCheckin({
-    required int questId,
-    DateTime? now,
-  }) async {
+  Future<void> insertHabitCheckin({required int questId, DateTime? now}) async {
     final current = now ?? DateTime.now();
     final db = await database;
-    await db.insert(
-      tableHabitCheckins,
-      {
-        'quest_id': questId,
-        'checkin_date': _dateKey(current),
-        'checked_in_at': current.toIso8601String(),
-      },
-      conflictAlgorithm: ConflictAlgorithm.abort,
-    );
+    await db.insert(tableHabitCheckins, {
+      'quest_id': questId,
+      'checkin_date': _dateKey(current),
+      'checked_in_at': current.toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.abort);
   }
 
   String _dateKey(DateTime date) =>
@@ -526,7 +557,9 @@ class DatabaseHelper {
       whereArgs: [questId],
     );
     if (updatedRows == 0) {
-      throw StateError('Quest $questId is already completed or does not exist.');
+      throw StateError(
+        'Quest $questId is already completed or does not exist.',
+      );
     }
     final updated = await getQuestById(questId);
     if (updated == null) {
@@ -559,7 +592,9 @@ class DatabaseHelper {
         whereArgs: [questId],
       );
       if (updatedRows == 0) {
-        throw StateError('Quest $questId is already completed or does not exist.');
+        throw StateError(
+          'Quest $questId is already completed or does not exist.',
+        );
       }
 
       final updatedUserRows = await txn.update(
@@ -569,7 +604,9 @@ class DatabaseHelper {
         whereArgs: [updatedUser.id],
       );
       if (updatedUserRows == 0) {
-        throw StateError('User ${updatedUser.id} not found while awarding rewards.');
+        throw StateError(
+          'User ${updatedUser.id} not found while awarding rewards.',
+        );
       }
 
       final maps = await txn.query(
@@ -596,15 +633,11 @@ class DatabaseHelper {
     final current = now ?? DateTime.now();
     final db = await database;
     await db.transaction((txn) async {
-      await txn.insert(
-        tableHabitCheckins,
-        {
-          'quest_id': questId,
-          'checkin_date': _dateKey(current),
-          'checked_in_at': current.toIso8601String(),
-        },
-        conflictAlgorithm: ConflictAlgorithm.abort,
-      );
+      await txn.insert(tableHabitCheckins, {
+        'quest_id': questId,
+        'checkin_date': _dateKey(current),
+        'checked_in_at': current.toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.abort);
       final userRows = await txn.update(
         tableUsers,
         updatedUser.toMap(),
@@ -930,18 +963,21 @@ class DatabaseHelper {
       final goldCost = rewardMaps.first['gold_cost'] as int;
       if (currentGold < goldCost) return RedeemOutcome.notEnoughGold;
 
-      final purchaseLimit =
-          CustomRewardPurchaseLimitX.fromDb(
-            rewardMaps.first['purchase_limit'] as String?,
-          );
+      final purchaseLimit = CustomRewardPurchaseLimitX.fromDb(
+        rewardMaps.first['purchase_limit'] as String?,
+      );
       if (purchaseLimit != CustomRewardPurchaseLimit.none) {
         final now = DateTime.now();
         final start = switch (purchaseLimit) {
           CustomRewardPurchaseLimit.daily1 ||
-          CustomRewardPurchaseLimit.daily2 =>
-            DateTime(now.year, now.month, now.day),
-          CustomRewardPurchaseLimit.weekly1 =>
-            now.subtract(Duration(days: now.weekday - 1)),
+          CustomRewardPurchaseLimit.daily2 => DateTime(
+            now.year,
+            now.month,
+            now.day,
+          ),
+          CustomRewardPurchaseLimit.weekly1 => now.subtract(
+            Duration(days: now.weekday - 1),
+          ),
           CustomRewardPurchaseLimit.monthly1 => DateTime(now.year, now.month),
           CustomRewardPurchaseLimit.none => now,
         };

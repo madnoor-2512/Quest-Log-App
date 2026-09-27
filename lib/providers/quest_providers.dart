@@ -118,6 +118,14 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     if (minute < start || minute > end) {
       throw StateError('อยู่นอกช่วงเวลาเช็กอินของเควสต์นี้');
     }
+    // ความถี่รายสัปดาห์ (ทุกวัน / จันทร์-ศุกร์ / กำหนดเอง) — ว่างเปล่า
+    // (เควสต์เก่าก่อนมีฟีเจอร์นี้ หรือกำหนดเองแล้วไม่ได้เลือกวันเลย)
+    // ถือว่าไม่จำกัดวัน เพื่อไม่ให้เควสต์เก่าเช็กอินไม่ได้
+    final allowedWeekdays = quest.effectiveHabitWeekdays;
+    if (allowedWeekdays.isNotEmpty &&
+        !allowedWeekdays.contains(current.weekday)) {
+      throw StateError('วันนี้ไม่ใช่วันที่กำหนดไว้สำหรับเควสต์นี้');
+    }
     if (await db.hasHabitCheckinToday(questId, now: current)) {
       throw StateError('เช็กอินเควสต์นี้วันนี้ไปแล้ว');
     }
@@ -126,16 +134,26 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     if (user == null) throw StateError('ไม่มีผู้ใช้ที่กำลังใช้งาน');
     final count = await db.getHabitCheckinCount(questId);
     final targetDays = quest.habitTargetDays ?? 30;
-    final result = ref.read(rewardCalculatorProvider).resolveQuestCompletionReward(
-      baseExp: quest.expReward,
-      baseGold: quest.goldReward,
-      streakCount: user.streakCount,
-      alreadyEarnedExpToday: (await db.getTodayEarnedTotals())['exp'] ?? 0,
-      alreadyEarnedGoldToday: (await db.getTodayEarnedTotals())['gold'] ?? 0,
-      hasRpgClass: user.rpgClass != null,
-    );
+    final result = ref
+        .read(rewardCalculatorProvider)
+        .resolveQuestCompletionReward(
+          baseExp: quest.expReward,
+          baseGold: quest.goldReward,
+          streakCount: user.streakCount,
+          alreadyEarnedExpToday: (await db.getTodayEarnedTotals())['exp'] ?? 0,
+          alreadyEarnedGoldToday:
+              (await db.getTodayEarnedTotals())['gold'] ?? 0,
+          hasRpgClass: user.rpgClass != null,
+        );
     final completed = count + 1 >= targetDays;
-    final hpGain = (user.streakCount >= 3) ? 15 : 10;
+    // ระดับความยากของเควสต์ทันใจมีผลต่อ HP ที่ฟื้นฟูด้วย เหมือน Focus
+    // Quest (ดูเหตุผลที่ RewardCalculatorService.estimateHpGain)
+    final hpGain = ref
+        .read(rewardCalculatorProvider)
+        .estimateHpGain(
+          difficulty: quest.difficulty,
+          streakBoost: user.streakCount >= 3,
+        );
     final updatedUser = user.withRewards(
       exp: result.awardedExp,
       gold: result.awardedGold,
@@ -242,8 +260,10 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     }
 
     // คำนวณการฟื้นฟู HP ตามระดับความยากของเควสต์ + บัฟคนขยัน (Streak >= 3)
-    final baseHeal = quest.difficulty * 5;
-    final hpGain = streakCount >= 3 ? (baseHeal * 1.25).round() : baseHeal;
+    final hpGain = calculator.estimateHpGain(
+      difficulty: quest.difficulty,
+      streakBoost: streakCount >= 3,
+    );
     final overflowGold = (user.currentHp + hpGain > user.maxHp)
         ? (user.currentHp + hpGain) - user.maxHp
         : 0;

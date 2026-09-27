@@ -42,8 +42,48 @@ class DailyCapResult {
   });
 }
 
+/// รางวัลพื้นฐาน EXP/Gold ของ "เควสต์ทันใจ" (Daily Habit) หนึ่งระดับ
+/// ความยาก — คืนคู่ค่าไว้ให้ preview และตอนบันทึกเควสต์ใช้ตัวเดียวกัน
+class QuickQuestReward {
+  final int exp;
+  final int gold;
+  const QuickQuestReward({required this.exp, required this.gold});
+}
+
 class RewardCalculatorService {
   const RewardCalculatorService();
+
+  /// รางวัลพื้นฐานของ "เควสต์ทันใจ" (Daily Habit) — คูณค่าคงที่รายวันด้วย
+  /// difficulty multiplier ชุดเดียวกับ Focus Quest เพื่อให้ระดับความยาก
+  /// (ดาว) มีผลต่อรางวัลเหมือนกันทั้งสองรูปแบบเควสต์
+  QuickQuestReward calculateQuickQuestReward({required int difficulty}) {
+    if (difficulty < 1 || difficulty > 5) {
+      throw ArgumentError.value(
+        difficulty,
+        'difficulty',
+        'must be between 1 and 5',
+      );
+    }
+    final mult = GamificationConfig.difficultyMultipliers[difficulty]!;
+    final exp = max(
+      GamificationConfig.minExpReward,
+      (GamificationConfig.habitDailyExpReward * mult).round(),
+    );
+    final gold = max(
+      GamificationConfig.minGoldReward,
+      (GamificationConfig.habitDailyGoldReward * mult).round(),
+    );
+    return QuickQuestReward(exp: exp, gold: gold);
+  }
+
+  /// ประมาณ HP ที่จะฟื้นฟูเมื่อทำเควสต์ระดับความยากนี้สำเร็จ — สูตรเดียว
+  /// กับที่ QuestActionsNotifier ใช้จริงตอนทำเควสต์สำเร็จ (ความยาก x 5,
+  /// บวกโบนัส +25% ถ้า Streak ต่อเนื่องตั้งแต่ 3 วันขึ้นไป) แยกไว้ที่นี่
+  /// เพื่อให้หน้า preview กับตอนคำนวณจริงใช้สูตรเดียวกันเสมอ
+  int estimateHpGain({required int difficulty, bool streakBoost = false}) {
+    final baseHeal = difficulty * 5;
+    return streakBoost ? (baseHeal * 1.25).round() : baseHeal;
+  }
 
   RewardCalculationResult calculateAutoReward({
     required int difficulty,
@@ -87,8 +127,11 @@ class RewardCalculatorService {
       GamificationConfig.maxRewardedSubTasks,
     );
     final rawExp =
-      (effectiveMinutes * GamificationConfig.baseExpPerMinute * diffMult * actMult) +
-      (rewardedSubTasks * GamificationConfig.expPerSubTask);
+        (effectiveMinutes *
+            GamificationConfig.baseExpPerMinute *
+            diffMult *
+            actMult) +
+        (rewardedSubTasks * GamificationConfig.expPerSubTask);
     final rawGold = rawExp * GamificationConfig.goldToExpRatio;
 
     final exp = max(GamificationConfig.minExpReward, rawExp.round());
