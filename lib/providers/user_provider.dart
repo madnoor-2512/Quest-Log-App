@@ -126,9 +126,9 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     await ref.read(databaseHelperProvider).updateUser(updated);
     state = AsyncValue.data(updated);
 
-    if (didLevelUp) {
-      levelUpEventStreamController.add(newLevel);
-    }
+    // if (didLevelUp) {
+    //   levelUpEventStreamController.add(newLevel);
+    // }
   }
 
   Future<bool> spendGold(int amount) async {

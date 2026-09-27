@@ -8,6 +8,7 @@ import '../providers/user_provider.dart';
 import '../services/gamification_config.dart';
 import '../theme/app_colors.dart';
 import '../widgets/add_custom_reward_sheet.dart';
+import '../widgets/rpg_button.dart';
 
 Color _rarityColor(ItemRarity rarity) {
   switch (rarity) {
