@@ -14,10 +14,25 @@ class RewardsListNotifier extends AsyncNotifier<List<RewardModel>> {
   @override
   Future<List<RewardModel>> build() async {
     final db = ref.read(databaseHelperProvider);
+    await db.ensureDefaultRewards();
     return db.getAllRewards();
   }
 
   Future<void> addReward(RewardModel reward) async {
+    final db = ref.read(databaseHelperProvider);
+    await db.insertReward(reward);
+    state = await AsyncValue.guard(() => db.getAllRewards());
+  }
+
+  Future<void> addCustomReward(RewardModel reward) async {
+    if (!reward.isCustomReward || reward.category != 'real_life') {
+      throw ArgumentError('Only real-life custom rewards can be added here.');
+    }
+    if (reward.goldCost < reward.impactLevel.minimumGold) {
+      throw ArgumentError(
+        'ราคาขั้นต่ำของระดับนี้คือ ${reward.impactLevel.minimumGold} Gold',
+      );
+    }
     final db = ref.read(databaseHelperProvider);
     await db.insertReward(reward);
     state = await AsyncValue.guard(() => db.getAllRewards());

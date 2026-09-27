@@ -8,6 +8,7 @@ class QuestCard extends StatefulWidget {
   final QuestModel quest;
   final VoidCallback? onComplete;
   final VoidCallback? onStartFocus;
+  final VoidCallback? onStartMindfulness;
   final bool isSelected; // for Focus Screen checklist mode
   final bool isDisabled; // for Focus Screen conflict mode
   final bool checklistMode;
@@ -17,6 +18,7 @@ class QuestCard extends StatefulWidget {
     required this.quest,
     this.onComplete,
     this.onStartFocus,
+    this.onStartMindfulness,
     this.isSelected = false,
     this.isDisabled = false,
     this.checklistMode = false,
@@ -66,6 +68,15 @@ class _QuestCardState extends State<QuestCard>
     super.dispose();
   }
 
+  bool get _isMindfulnessQuest {
+    final titleLower = widget.quest.title.toLowerCase();
+    return widget.quest.activityType == ActivityType.stillness ||
+        titleLower.contains('สมาธิ') ||
+        titleLower.contains('หายใจ') ||
+        titleLower.contains('mindful') ||
+        titleLower.contains('meditat');
+  }
+
   void _handleComplete() async {
     if (_completing) return;
     setState(() => _completing = true);
@@ -85,6 +96,7 @@ class _QuestCardState extends State<QuestCard>
   }
 
   IconData get _activityIcon {
+    if (_isMindfulnessQuest) return Icons.self_improvement_rounded;
     switch (widget.quest.activityType) {
       case ActivityType.physicalHeavy:
         return Icons.fitness_center_rounded;
@@ -99,266 +111,242 @@ class _QuestCardState extends State<QuestCard>
 
   @override
   Widget build(BuildContext context) {
-    final isDone = widget.quest.isCompleted || _completing;
+    final isDone = widget.quest.isCompleted;
 
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        FadeTransition(
-          opacity: _fadeAnim,
-          child: Opacity(
-            opacity: widget.isDisabled ? 0.45 : 1.0,
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: widget.isSelected
-                    ? AppColors.primaryLight
+    return FadeTransition(
+      opacity: _fadeAnim,
+      child: Opacity(
+        opacity: widget.isDisabled ? 0.45 : 1.0,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          decoration: BoxDecoration(
+            color: widget.isSelected
+                ? AppColors.primaryLight
+                : isDone
+                    ? const Color(0xFFF0FDF4)
                     : AppColors.cardSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: widget.isSelected
-                      ? AppColors.primary
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: widget.isSelected
+                  ? AppColors.primary
+                  : isDone
+                      ? const Color(0xFF86EFAC)
                       : widget.isDisabled
-                      ? AppColors.borderLight
-                      : AppColors.border,
-                  width: widget.isSelected ? 2.5 : 2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadow,
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                          ? AppColors.borderLight
+                          : AppColors.border,
+              width: widget.isSelected ? 2.5 : 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: isDone
+                    ? const Color(0xFF22C55E).withAlpha(20)
+                    : AppColors.shadow,
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header row
+                Row(
                   children: [
-                    // Header row
-                    Row(
-                      children: [
-                        // Category color dot + activity icon
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: _categoryColor.withAlpha(30),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: _categoryColor, width: 2),
-                          ),
-                          child: Icon(
-                            _activityIcon,
-                            size: 18,
-                            color: _categoryColor,
-                          ),
+                    // Category color dot + activity icon
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isDone
+                            ? const Color(0xFFDCFCE7)
+                            : _categoryColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDone ? const Color(0xFF16A34A) : _categoryColor,
+                          width: 2,
                         ),
-                        const SizedBox(width: 10),
-                        // Title + category chip
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      ),
+                      child: Icon(
+                        isDone ? Icons.check_circle_rounded : _activityIcon,
+                        size: 18,
+                        color: isDone ? const Color(0xFF16A34A) : _categoryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    // Title + category chip
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.quest.title,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  decoration: isDone
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  color: isDone
+                                      ? AppColors.textMuted
+                                      : AppColors.textPrimary,
+                                ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
                             children: [
-                              Text(
-                                widget.quest.title,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(
-                                      decoration: isDone
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      color: isDone
-                                          ? AppColors.textMuted
-                                          : AppColors.textPrimary,
-                                    ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Row(
-                                children: [
-                                  _CategoryChip(
-                                    category: widget.quest.category,
-                                    color: _categoryColor,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  _DifficultyStars(
-                                    difficulty: widget.quest.difficulty,
-                                  ),
-                                ],
-                              ),
+                              _CategoryChip(
+                                  category: widget.quest.category,
+                                  color: isDone ? const Color(0xFF16A34A) : _categoryColor),
+                              const SizedBox(width: 6),
+                              _DifficultyStars(
+                                  difficulty: widget.quest.difficulty),
                             ],
                           ),
-                        ),
-                        // Checklist checkbox
-                        if (widget.checklistMode)
-                          Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: widget.isSelected
-                                  ? AppColors.primary
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: widget.isSelected
-                                    ? AppColors.primary
-                                    : AppColors.border,
-                                width: 2,
-                              ),
-                            ),
-                            child: widget.isSelected
-                                ? const Icon(
-                                    Icons.check_rounded,
-                                    size: 16,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                      ],
-                    ),
-                    // Description
-                    if (widget.quest.description != null &&
-                        widget.quest.description!.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.quest.description!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        ],
                       ),
-                    ],
-                    const SizedBox(height: 10),
-                    // Rewards + buttons row
-                    Row(
-                      children: [
-                        // EXP reward
-                        _RewardChip(
-                          icon: Icons.star_rounded,
-                          label: '+${widget.quest.expReward} EXP',
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 6),
-                        _RewardChip(
-                          icon: Icons.monetization_on_rounded,
-                          label: '+${widget.quest.goldReward} G',
-                          color: const Color(0xFFB45309),
-                        ),
-                        if (widget.quest.estimatedMinutes > 0) ...[
-                          const SizedBox(width: 6),
-                          _RewardChip(
-                            icon: Icons.timer_outlined,
-                            label: '${widget.quest.estimatedMinutes}m',
-                            color: AppColors.textSecondary,
-                          ),
-                        ],
-                        const Spacer(),
-                        // Action buttons
-                        if (!widget.checklistMode &&
-                            !widget.quest.isCompleted) ...[
-                          if (widget.onStartFocus != null)
-                            _SmallButton(
-                              label: 'Focus',
-                              icon: Icons.center_focus_strong_rounded,
-                              color: AppColors.primary,
-                              onTap: widget.onStartFocus,
-                            ),
-                          const SizedBox(width: 6),
-                          if (widget.onComplete != null)
-                            _SmallButton(
-                              label: 'Done',
-                              icon: Icons.check_circle_outline_rounded,
-                              color: AppColors.secondary,
-                              onTap: _handleComplete,
-                            ),
-                        ],
-                        if (widget.quest.isCompleted)
-                          const Icon(
-                            Icons.check_circle_rounded,
-                            color: AppColors.primary,
-                            size: 22,
-                          ),
-                      ],
                     ),
+                    // Checklist checkbox
+                    if (widget.checklistMode)
+                      Container(
+                        width: 26,
+                        height: 26,
+                        decoration: BoxDecoration(
+                          color: widget.isSelected
+                              ? AppColors.primary
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(
+                            color: widget.isSelected
+                                ? AppColors.primary
+                                : AppColors.border,
+                            width: 2,
+                          ),
+                        ),
+                        child: widget.isSelected
+                            ? const Icon(Icons.check_rounded,
+                                size: 16, color: Colors.white)
+                            : null,
+                      ),
                   ],
                 ),
-              ),
+                // Description
+                if (widget.quest.description != null &&
+                    widget.quest.description!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.quest.description!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+                const SizedBox(height: 10),
+                // Rewards + buttons row
+                Row(
+                  children: [
+                    if (isDone) ...[
+                      // เด้งตัวเลขรางวัลสำหรับเควสต์ที่เสร็จแล้ว
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFDCFCE7),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFF86EFAC)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded,
+                                size: 14, color: Color(0xFF15803D)),
+                            const SizedBox(width: 3),
+                            Text(
+                              '+${widget.quest.awardedExp ?? widget.quest.expReward} EXP • +${widget.quest.awardedGold ?? widget.quest.goldReward} Gold',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF15803D),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      const Row(
+                        children: [
+                          Icon(Icons.check_circle_rounded,
+                              color: Color(0xFF16A34A), size: 20),
+                          SizedBox(width: 4),
+                          Text(
+                            'สำเร็จแล้ว',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF16A34A),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ] else ...[
+                      // EXP reward
+                      _RewardChip(
+                        icon: Icons.star_rounded,
+                        label: '+${widget.quest.expReward} EXP',
+                        color: AppColors.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      _RewardChip(
+                        icon: Icons.monetization_on_rounded,
+                        label: '+${widget.quest.goldReward} G',
+                        color: const Color(0xFFB45309),
+                      ),
+                      if (widget.quest.estimatedMinutes > 0) ...[
+                        const SizedBox(width: 6),
+                        _RewardChip(
+                          icon: Icons.timer_outlined,
+                          label: '${widget.quest.estimatedMinutes}m',
+                          color: AppColors.textSecondary,
+                        ),
+                      ],
+                      const Spacer(),
+                      // Action buttons
+                      if (!widget.checklistMode) ...[
+                        if (_isMindfulnessQuest) ...[
+                          _SmallButton(
+                            label: 'ฝึก',
+                            icon: Icons.self_improvement_rounded,
+                            color: const Color(0xFF7C3AED), // Calming purple
+                            onTap: widget.onStartMindfulness ?? widget.onStartFocus,
+                          ),
+                          const SizedBox(width: 6),
+                        ] else if (widget.quest.estimatedMinutes > 0 &&
+                            widget.onStartFocus != null) ...[
+                          _SmallButton(
+                            label: 'เริ่ม',
+                            icon: Icons.play_arrow_rounded,
+                            color: const Color(0xFFEA580C), // Brick orange
+                            onTap: widget.onStartFocus,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        if (widget.onComplete != null)
+                          _SmallButton(
+                            label: 'เสร็จ',
+                            icon: Icons.check_circle_outline_rounded,
+                            color: AppColors.primaryDark,
+                            onTap: _handleComplete,
+                          ),
+                      ],
+                    ],
+                  ],
+                ),
+              ],
             ),
           ),
         ),
-        // Floating "+EXP / +Gold" text animation
-        if (_completing)
-          Positioned(
-            top: 4,
-            right: 12,
-            child: AnimatedBuilder(
-              animation: _completeCtrl,
-              builder: (context, _) {
-                return Transform.translate(
-                  offset: _floatAnim.value,
-                  child: Opacity(
-                    opacity: _floatFadeAnim.value,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.levelGold,
-                          width: 1.5,
-                        ),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x66FFD700),
-                            blurRadius: 8,
-                            spreadRadius: 2,
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 14,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '+${widget.quest.expReward} EXP',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          const Icon(
-                            Icons.monetization_on_rounded,
-                            size: 14,
-                            color: AppColors.goldReward,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '+${widget.quest.goldReward} G',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                              color: AppColors.goldReward,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

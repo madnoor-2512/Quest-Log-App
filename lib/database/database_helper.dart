@@ -7,6 +7,7 @@ import '../models/sub_task_model.dart';
 import '../models/focus_session_model.dart';
 import '../models/reward_model.dart';
 import '../models/achievement_model.dart';
+import '../services/gamification_config.dart';
 
 /// DatabaseHelper — Singleton จัดการ SQLite database ทั้งหมดของแอป Quest Log
 class DatabaseHelper {
@@ -16,7 +17,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 6;
+  static const int dbVersion = 11;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -133,6 +134,61 @@ class DatabaseHelper {
         );
       ''');
     }
+    if (oldVersion < 7) {
+      await db.execute(
+        "ALTER TABLE $tableRewards ADD COLUMN category TEXT NOT NULL DEFAULT 'system';",
+      );
+      await db.execute(
+        "ALTER TABLE $tableRewards ADD COLUMN impact_level TEXT NOT NULL DEFAULT 'minor';",
+      );
+      await db.execute(
+        "ALTER TABLE $tableRewards ADD COLUMN purchase_limit TEXT NOT NULL DEFAULT 'none';",
+      );
+      await db.execute(
+        'ALTER TABLE $tableRewards ADD COLUMN is_custom_reward INTEGER NOT NULL DEFAULT 0;',
+      );
+    }
+    if (oldVersion < 8) {
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN is_streak_frozen INTEGER NOT NULL DEFAULT 0;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN missed_days_count INTEGER NOT NULL DEFAULT 0;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN has_streak_debuff INTEGER NOT NULL DEFAULT 0;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN streak_before_reset INTEGER NOT NULL DEFAULT 0;',
+      );
+    }
+    if (oldVersion < 9) {
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN streak_frozen_until TEXT;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN melt_exp_bonus_pending INTEGER NOT NULL DEFAULT 0;',
+      );
+      await db.execute(
+        "UPDATE $tableRewards SET gold_cost = 350 WHERE title = 'Streak Repair Hammer' AND is_custom_reward = 0;",
+      );
+    }
+    if (oldVersion < 10) {
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN streak_reset_at TEXT;',
+      );
+    }
+    if (oldVersion < 11) {
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN gems INTEGER NOT NULL DEFAULT 10;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN current_hp INTEGER NOT NULL DEFAULT 100;',
+      );
+      await db.execute(
+        'ALTER TABLE $tableUsers ADD COLUMN max_hp INTEGER NOT NULL DEFAULT 100;',
+      );
+    }
   }
 
   Future<void> _onConfigure(Database db) async {
@@ -150,6 +206,9 @@ class DatabaseHelper {
         current_exp INTEGER NOT NULL DEFAULT 0,
         max_exp INTEGER NOT NULL DEFAULT 100,
         gold INTEGER NOT NULL DEFAULT 0,
+        gems INTEGER NOT NULL DEFAULT 10,
+        current_hp INTEGER NOT NULL DEFAULT 100,
+        max_hp INTEGER NOT NULL DEFAULT 100,
         streak_count INTEGER NOT NULL DEFAULT 0,
         last_active_date TEXT,
         avatar_index INTEGER NOT NULL DEFAULT 0,
@@ -157,6 +216,13 @@ class DatabaseHelper {
         username TEXT,
         motto TEXT,
         rpg_class TEXT
+        ,is_streak_frozen INTEGER NOT NULL DEFAULT 0
+        ,missed_days_count INTEGER NOT NULL DEFAULT 0
+        ,has_streak_debuff INTEGER NOT NULL DEFAULT 0
+        ,streak_before_reset INTEGER NOT NULL DEFAULT 0
+        ,streak_frozen_until TEXT
+        ,melt_exp_bonus_pending INTEGER NOT NULL DEFAULT 0
+        ,streak_reset_at TEXT
       );
     ''');
 
@@ -224,6 +290,10 @@ class DatabaseHelper {
         rarity TEXT NOT NULL DEFAULT 'COMMON',
         effect_type TEXT,
         effect_value REAL
+        ,category TEXT NOT NULL DEFAULT 'system'
+        ,impact_level TEXT NOT NULL DEFAULT 'minor'
+        ,purchase_limit TEXT NOT NULL DEFAULT 'none'
+        ,is_custom_reward INTEGER NOT NULL DEFAULT 0
       );
     ''');
 
@@ -693,10 +763,129 @@ class DatabaseHelper {
     return await db.insert(tableRewards, reward.toMap());
   }
 
+  Future<void> ensureDefaultRewards() async {
+    final existing = await getAllRewards();
+    final existingTitles = existing.map((reward) => reward.title).toSet();
+    const defaults = [
+      RewardModel(
+        title: 'หูฟัง Lo-Fi',
+        goldCost: 200,
+        description: 'เพิ่มเวลา Focus 10% เมื่อสวมใส่',
+        iconName: 'headphones',
+        itemCategory: RewardCategory.equipment,
+        rarity: ItemRarity.rare,
+        effectType: ItemEffectType.focusTimeBonusPercent,
+        effectValue: 0.10,
+      ),
+      RewardModel(
+        title: 'ตราปลดล็อก Multitask',
+        goldCost: 350,
+        description: 'ปลดล็อกช่อง Concurrent Quest ที่ 3 เมื่อสวมใส่',
+        iconName: 'layers',
+        itemCategory: RewardCategory.equipment,
+        rarity: ItemRarity.epic,
+        effectType: ItemEffectType.parallelQuestSlot,
+        effectValue: 1,
+      ),
+      RewardModel(
+        title: 'คัมภีร์ยืดเวลา',
+        goldCost: 60,
+        description: 'เพิ่มเวลา Focus 15 นาที ใช้ได้ระหว่าง session',
+        iconName: 'auto_stories',
+        itemCategory: RewardCategory.consumable,
+        rarity: ItemRarity.common,
+        effectType: ItemEffectType.extendFocusMinutes,
+        effectValue: 15,
+      ),
+      RewardModel(
+        title: 'ขวดพลังประสบการณ์',
+        goldCost: 120,
+        description: 'ได้รับ EXP ทันที 50 แต้ม',
+        iconName: 'science',
+        itemCategory: RewardCategory.consumable,
+        rarity: ItemRarity.rare,
+        effectType: ItemEffectType.instantExp,
+        effectValue: 50,
+      ),
+      RewardModel(
+        title: 'ถุงทองกล้าหาญ',
+        goldCost: 180,
+        description: 'ได้รับ Gold ทันที 100 เหรียญ',
+        iconName: 'savings',
+        itemCategory: RewardCategory.consumable,
+        rarity: ItemRarity.rare,
+        effectType: ItemEffectType.instantGold,
+        effectValue: 100,
+      ),
+      RewardModel(
+        title: 'เหรียญนักตื่นเช้า',
+        goldCost: 500,
+        description: 'ของสะสมสำหรับผู้พิชิต Habit ต่อเนื่อง',
+        iconName: 'wb_sunny',
+        itemCategory: RewardCategory.collectible,
+        rarity: ItemRarity.epic,
+      ),
+      RewardModel(
+        title: 'ตรา Multitasking Adventurer',
+        goldCost: 650,
+        description: 'ของสะสมสำหรับผู้ทำ Concurrent Quest สำเร็จ',
+        iconName: 'military_tech',
+        itemCategory: RewardCategory.collectible,
+        rarity: ItemRarity.epic,
+      ),
+      RewardModel(
+        title: 'Streak Repair Hammer',
+        goldCost: GamificationConfig.streakRepairHammerCost,
+        description: 'กู้คืน Streak ที่ถูกรีเซ็ตจากการขาดต่อเนื่อง 2 วัน',
+        iconName: 'build',
+        itemCategory: RewardCategory.consumable,
+        rarity: ItemRarity.epic,
+        effectType: ItemEffectType.streakRepairHammer,
+        effectValue: 1,
+      ),
+      RewardModel(
+        title: 'Freeze Wand / Shield',
+        goldCost: GamificationConfig.freezeStreakShieldCost,
+        description: 'แช่แข็ง Streak ล่วงหน้า 1-3 วัน',
+        iconName: 'ac_unit',
+        itemCategory: RewardCategory.consumable,
+        rarity: ItemRarity.rare,
+        effectType: ItemEffectType.freezeStreakShield,
+        effectValue: 1,
+      ),
+      RewardModel(
+        title: 'Melt Potion',
+        goldCost: GamificationConfig.meltFrozenStreakCost,
+        description: 'ละลาย Frozen และรับโบนัส EXP เควสต์ถัดไป 25%',
+        iconName: 'local_drink',
+        itemCategory: RewardCategory.consumable,
+        rarity: ItemRarity.rare,
+        effectType: ItemEffectType.meltFrozenStreak,
+        effectValue: 0.25,
+      ),
+    ];
+
+    for (final reward in defaults) {
+      if (!existingTitles.contains(reward.title)) {
+        await insertReward(reward);
+      }
+    }
+  }
+
   Future<List<RewardModel>> getAllRewards() async {
     final db = await database;
     final maps = await db.query(tableRewards, orderBy: 'gold_cost ASC');
     return maps.map((m) => RewardModel.fromMap(m)).toList();
+  }
+
+  Future<List<RewardModel>> getCustomRewards() async {
+    final db = await database;
+    final maps = await db.query(
+      tableRewards,
+      where: 'is_custom_reward = 1',
+      orderBy: 'id DESC',
+    );
+    return maps.map((map) => RewardModel.fromMap(map)).toList();
   }
 
   Future<int> updateReward(RewardModel reward) async {
@@ -740,6 +929,33 @@ class DatabaseHelper {
       final currentGold = userMaps.first['gold'] as int;
       final goldCost = rewardMaps.first['gold_cost'] as int;
       if (currentGold < goldCost) return RedeemOutcome.notEnoughGold;
+
+      final purchaseLimit =
+          CustomRewardPurchaseLimitX.fromDb(
+            rewardMaps.first['purchase_limit'] as String?,
+          );
+      if (purchaseLimit != CustomRewardPurchaseLimit.none) {
+        final now = DateTime.now();
+        final start = switch (purchaseLimit) {
+          CustomRewardPurchaseLimit.daily1 ||
+          CustomRewardPurchaseLimit.daily2 =>
+            DateTime(now.year, now.month, now.day),
+          CustomRewardPurchaseLimit.weekly1 =>
+            now.subtract(Duration(days: now.weekday - 1)),
+          CustomRewardPurchaseLimit.monthly1 => DateTime(now.year, now.month),
+          CustomRewardPurchaseLimit.none => now,
+        };
+        final countRows = await txn.rawQuery(
+          'SELECT COUNT(*) AS count FROM $tableRedemptions '
+          'WHERE reward_id = ? AND redeemed_at >= ?',
+          [rewardId, start.toIso8601String()],
+        );
+        final count = (countRows.first['count'] as int?) ?? 0;
+        final maxPurchases = purchaseLimit == CustomRewardPurchaseLimit.daily2
+            ? 2
+            : 1;
+        if (count >= maxPurchases) return RedeemOutcome.purchaseLimitReached;
+      }
 
       final capacity = userMaps.first['inventory_capacity'] as int? ?? 20;
       final existingStack = await txn.query(

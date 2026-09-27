@@ -52,6 +52,15 @@ class InventoryNotifier extends AsyncNotifier<List<InventoryEntry>> {
         );
       }
     }
+    if (entry.reward.effectType == ItemEffectType.streakRepairHammer) {
+      final user = ref.read(userProvider).valueOrNull;
+      final expired = user?.streakResetAt == null ||
+          DateTime.now().difference(DateTime.parse(user!.streakResetAt!)).inHours >
+              48;
+      if (user == null || user.streakBeforeReset <= 0 || expired) {
+        throw StateError('ไม่มี Streak ที่ถูกรีเซ็ตภายใน 48 ชั่วโมงให้กู้คืน');
+      }
+    }
 
     final db = ref.read(databaseHelperProvider);
     final usedReward = await db.useInventoryItem(entry.item.id!);
@@ -91,6 +100,28 @@ class InventoryNotifier extends AsyncNotifier<List<InventoryEntry>> {
         return 'ไอเทมนี้เป็นของสวมใส่ ให้กดปุ่ม "สวมใส่" แทนการใช้';
       case ItemEffectType.parallelQuestSlot:
         return 'ไอเทมนี้เป็นของสวมใส่ เพื่อปลดล็อกช่อง Concurrent Quest';
+      case ItemEffectType.streakRepairHammer:
+        final repaired = await ref
+          .read(userProvider.notifier)
+          .repairFrozenStreak();
+        return repaired
+            ? 'กู้คืน Streak สำเร็จแล้ว!'
+            : 'ยังไม่มี Streak ที่ต้องกู้คืน';
+        case ItemEffectType.freezeStreakShield:
+        final days = value.round().clamp(1, 3);
+        final frozen = await ref
+          .read(userProvider.notifier)
+          .freezeStreak(days: days);
+        return frozen
+          ? 'แช่แข็ง Streak ล่วงหน้า $days วันแล้ว!'
+          : 'แช่แข็ง Streak ไม่สำเร็จ';
+        case ItemEffectType.meltFrozenStreak:
+        final melted = await ref
+          .read(userProvider.notifier)
+          .meltFrozenStreak();
+        return melted
+          ? 'ละลาย Frozen สำเร็จ! เควสต์ถัดไปได้โบนัส EXP 25%'
+          : 'ยังไม่มีสถานะ Frozen ให้ละลาย';
       case ItemEffectType.none:
         return 'ใช้ไอเทมเรียบร้อย';
     }

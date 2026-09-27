@@ -1,6 +1,62 @@
 /// หมวดหมู่ของรางวัล — ตรงกับ filter chip ในหน้าคลังไอเทม
 enum RewardCategory { equipment, consumable, collectible }
 
+enum CustomRewardImpact { minor, medium, major }
+
+extension CustomRewardImpactX on CustomRewardImpact {
+  String get dbValue => switch (this) {
+    CustomRewardImpact.minor => 'minor',
+    CustomRewardImpact.medium => 'medium',
+    CustomRewardImpact.major => 'major',
+  };
+
+  String get displayName => switch (this) {
+    CustomRewardImpact.minor => 'เล็กน้อย',
+    CustomRewardImpact.medium => 'ปานกลาง',
+    CustomRewardImpact.major => 'ใหญ่/พิเศษ',
+  };
+
+  int get minimumGold => switch (this) {
+    CustomRewardImpact.minor => 50,
+    CustomRewardImpact.medium => 200,
+    CustomRewardImpact.major => 600,
+  };
+
+  static CustomRewardImpact fromDb(String? value) => switch (value) {
+    'medium' => CustomRewardImpact.medium,
+    'major' => CustomRewardImpact.major,
+    _ => CustomRewardImpact.minor,
+  };
+}
+
+enum CustomRewardPurchaseLimit { none, daily1, daily2, weekly1, monthly1 }
+
+extension CustomRewardPurchaseLimitX on CustomRewardPurchaseLimit {
+  String get dbValue => switch (this) {
+    CustomRewardPurchaseLimit.none => 'none',
+    CustomRewardPurchaseLimit.daily1 => 'daily_1',
+    CustomRewardPurchaseLimit.daily2 => 'daily_2',
+    CustomRewardPurchaseLimit.weekly1 => 'weekly_1',
+    CustomRewardPurchaseLimit.monthly1 => 'monthly_1',
+  };
+
+  String get displayName => switch (this) {
+    CustomRewardPurchaseLimit.none => 'ไม่จำกัด',
+    CustomRewardPurchaseLimit.daily1 => '1 ครั้ง/วัน',
+    CustomRewardPurchaseLimit.daily2 => '2 ครั้ง/วัน',
+    CustomRewardPurchaseLimit.weekly1 => '1 ครั้ง/สัปดาห์',
+    CustomRewardPurchaseLimit.monthly1 => '1 ครั้ง/เดือน',
+  };
+
+  static CustomRewardPurchaseLimit fromDb(String? value) => switch (value) {
+    'daily_1' => CustomRewardPurchaseLimit.daily1,
+    'daily_2' => CustomRewardPurchaseLimit.daily2,
+    'weekly_1' => CustomRewardPurchaseLimit.weekly1,
+    'monthly_1' => CustomRewardPurchaseLimit.monthly1,
+    _ => CustomRewardPurchaseLimit.none,
+  };
+}
+
 extension RewardCategoryX on RewardCategory {
   String get dbValue {
     switch (this) {
@@ -89,6 +145,9 @@ enum ItemEffectType {
   none,
   focusTimeBonusPercent,
   parallelQuestSlot,
+  streakRepairHammer,
+  freezeStreakShield,
+  meltFrozenStreak,
   extendFocusMinutes,
   instantExp,
   instantGold,
@@ -103,6 +162,12 @@ extension ItemEffectTypeX on ItemEffectType {
         return 'FOCUS_TIME_BONUS_PERCENT';
       case ItemEffectType.parallelQuestSlot:
         return 'PARALLEL_QUEST_SLOT';
+      case ItemEffectType.streakRepairHammer:
+        return 'STREAK_REPAIR_HAMMER';
+      case ItemEffectType.freezeStreakShield:
+        return 'FREEZE_STREAK_SHIELD';
+      case ItemEffectType.meltFrozenStreak:
+        return 'MELT_FROZEN_STREAK';
       case ItemEffectType.extendFocusMinutes:
         return 'EXTEND_FOCUS_MINUTES';
       case ItemEffectType.instantExp:
@@ -121,6 +186,12 @@ extension ItemEffectTypeX on ItemEffectType {
         return 'เพิ่ม Focus Time (%)';
       case ItemEffectType.parallelQuestSlot:
         return 'ปลดล็อกช่อง Concurrent Quest ที่ 3';
+      case ItemEffectType.streakRepairHammer:
+        return 'กู้คืน Streak ที่ถูกรีเซ็ต';
+      case ItemEffectType.freezeStreakShield:
+        return 'แช่แข็ง Streak ล่วงหน้า';
+      case ItemEffectType.meltFrozenStreak:
+        return 'ละลายสถานะ Frozen และรับโบนัส EXP';
       case ItemEffectType.extendFocusMinutes:
         return 'ต่อเวลาโฟกัส (นาที)';
       case ItemEffectType.instantExp:
@@ -136,6 +207,12 @@ extension ItemEffectTypeX on ItemEffectType {
         return ItemEffectType.focusTimeBonusPercent;
       case 'PARALLEL_QUEST_SLOT':
         return ItemEffectType.parallelQuestSlot;
+      case 'STREAK_REPAIR_HAMMER':
+        return ItemEffectType.streakRepairHammer;
+      case 'FREEZE_STREAK_SHIELD':
+        return ItemEffectType.freezeStreakShield;
+      case 'MELT_FROZEN_STREAK':
+        return ItemEffectType.meltFrozenStreak;
       case 'EXTEND_FOCUS_MINUTES':
         return ItemEffectType.extendFocusMinutes;
       case 'INSTANT_EXP':
@@ -159,6 +236,10 @@ class RewardModel {
   final ItemRarity rarity;
   final ItemEffectType effectType;
   final double? effectValue; // ความหมายขึ้นกับ effectType (% หรือ จำนวน)
+  final String category;
+  final CustomRewardImpact impactLevel;
+  final CustomRewardPurchaseLimit purchaseLimit;
+  final bool isCustomReward;
 
   const RewardModel({
     this.id,
@@ -170,6 +251,10 @@ class RewardModel {
     this.rarity = ItemRarity.common,
     this.effectType = ItemEffectType.none,
     this.effectValue,
+    this.category = 'system',
+    this.impactLevel = CustomRewardImpact.minor,
+    this.purchaseLimit = CustomRewardPurchaseLimit.none,
+    this.isCustomReward = false,
   });
 
   RewardModel copyWith({
@@ -182,6 +267,10 @@ class RewardModel {
     ItemRarity? rarity,
     ItemEffectType? effectType,
     double? effectValue,
+    String? category,
+    CustomRewardImpact? impactLevel,
+    CustomRewardPurchaseLimit? purchaseLimit,
+    bool? isCustomReward,
   }) {
     return RewardModel(
       id: id ?? this.id,
@@ -193,6 +282,10 @@ class RewardModel {
       rarity: rarity ?? this.rarity,
       effectType: effectType ?? this.effectType,
       effectValue: effectValue ?? this.effectValue,
+      category: category ?? this.category,
+      impactLevel: impactLevel ?? this.impactLevel,
+      purchaseLimit: purchaseLimit ?? this.purchaseLimit,
+      isCustomReward: isCustomReward ?? this.isCustomReward,
     );
   }
 
@@ -207,6 +300,10 @@ class RewardModel {
       'rarity': rarity.dbValue,
       'effect_type': effectType.dbValue,
       'effect_value': effectValue,
+      'category': category,
+      'impact_level': impactLevel.dbValue,
+      'purchase_limit': purchaseLimit.dbValue,
+      'is_custom_reward': isCustomReward ? 1 : 0,
     };
   }
 
@@ -223,6 +320,12 @@ class RewardModel {
       rarity: ItemRarityX.fromDb(map['rarity'] as String? ?? 'COMMON'),
       effectType: ItemEffectTypeX.fromDb(map['effect_type'] as String?),
       effectValue: (map['effect_value'] as num?)?.toDouble(),
+      category: map['category'] as String? ?? 'system',
+      impactLevel: CustomRewardImpactX.fromDb(map['impact_level'] as String?),
+      purchaseLimit: CustomRewardPurchaseLimitX.fromDb(
+        map['purchase_limit'] as String?,
+      ),
+      isCustomReward: (map['is_custom_reward'] as int? ?? 0) == 1,
     );
   }
 
@@ -234,7 +337,12 @@ class RewardModel {
 /// ผลลัพธ์ของการแลกของรางวัล — แยกเหตุผลที่แลกไม่สำเร็จให้ชัดเจน แทนที่
 /// จะคืนแค่ bool เหมือนเดิม เพราะตอนนี้มีเหตุผลได้ 2 แบบ (Gold ไม่พอ /
 /// คลังเต็ม) ที่ผู้ใช้ควรเห็นข้อความต่างกัน
-enum RedeemOutcome { success, notEnoughGold, inventoryFull }
+enum RedeemOutcome {
+  success,
+  notEnoughGold,
+  inventoryFull,
+  purchaseLimitReached,
+}
 
 /// inventory_items — ไอเทมที่ผู้ใช้ "เป็นเจ้าของ" อยู่ตอนนี้ (1 แถวต่อ
 /// reward 1 ชนิดที่ถือครองอยู่ — ของซ้ำสะสมที่ quantity ไม่ใช่แยกแถว)
