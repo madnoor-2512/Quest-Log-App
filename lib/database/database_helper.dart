@@ -960,8 +960,15 @@ class DatabaseHelper {
         throw StateError('User or reward not found.');
       }
       final currentGold = userMaps.first['gold'] as int;
-      final goldCost = rewardMaps.first['gold_cost'] as int;
-      if (currentGold < goldCost) return RedeemOutcome.notEnoughGold;
+      final currentGems = userMaps.first['gems'] as int? ?? 0;
+      final cost = rewardMaps.first['gold_cost'] as int;
+      final isCustom = (rewardMaps.first['is_custom_reward'] as int? ?? 0) == 1;
+
+      if (isCustom) {
+        if (currentGold < cost) return RedeemOutcome.notEnoughGold;
+      } else {
+        if (currentGems < cost) return RedeemOutcome.notEnoughGems;
+      }
 
       final purchaseLimit = CustomRewardPurchaseLimitX.fromDb(
         rewardMaps.first['purchase_limit'] as String?,
@@ -1012,7 +1019,9 @@ class DatabaseHelper {
 
       await txn.update(
         tableUsers,
-        {'gold': currentGold - goldCost},
+        isCustom 
+            ? {'gold': currentGold - cost}
+            : {'gems': currentGems - cost},
         where: 'id = ?',
         whereArgs: [userId],
       );

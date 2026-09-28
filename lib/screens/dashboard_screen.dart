@@ -760,7 +760,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         height: 72,
                         decoration: BoxDecoration(
                           color: AppColors.primaryLight,
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: isCriticalHp
                                 ? AppColors.error

@@ -340,6 +340,7 @@ class RewardModel {
 enum RedeemOutcome {
   success,
   notEnoughGold,
+  notEnoughGems,
   inventoryFull,
   purchaseLimitReached,
 }

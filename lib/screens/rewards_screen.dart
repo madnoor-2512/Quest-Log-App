@@ -64,34 +64,69 @@ class _RewardsScreenState extends ConsumerState<RewardsScreen> {
                         color: AppColors.textPrimary,
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.goldReward.withAlpha(40),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.goldReward),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.monetization_on_rounded,
-                            color: AppColors.goldReward,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${user?.gold ?? 0} Gold',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    // Row(
+                      // children: [
+                      //   // Gem Balance
+                      //   Container(
+                      //     padding: const EdgeInsets.symmetric(
+                      //       horizontal: 10,
+                      //       vertical: 6,
+                      //     ),
+                      //     decoration: BoxDecoration(
+                      //       color: const Color(0xFF0284C7).withAlpha(40),
+                      //       borderRadius: BorderRadius.circular(16),
+                      //       border: Border.all(color: const Color(0xFF0284C7)),
+                      //     ),
+                      //     child: Row(
+                      //       children: [
+                      //         const Icon(
+                      //           Icons.diamond_rounded,
+                      //           color: Color(0xFF0284C7),
+                      //           size: 18,
+                      //         ),
+                      //         const SizedBox(width: 4),
+                      //         Text(
+                      //           '${user?.gems ?? 0}',
+                      //           style: const TextStyle(
+                      //             fontWeight: FontWeight.bold,
+                      //             color: AppColors.textPrimary,
+                      //           ),
+                      //         ),
+                      //       ],
+                      //     ),
+                      //   ),
+                      //   const SizedBox(width: 8),
+                      //   // Gold Balance
+                      //   Container(
+                      //     padding: const EdgeInsets.symmetric(
+                      //       horizontal: 10,
+                      //       vertical: 6,
+                      //     ),
+                      //     decoration: BoxDecoration(
+                      //       color: AppColors.goldReward.withAlpha(40),
+                      //       borderRadius: BorderRadius.circular(16),
+                      //       border: Border.all(color: AppColors.goldReward),
+                      //     ),
+                      //     child: Row(
+                      //       children: [
+                      //         const Icon(
+                      //           Icons.monetization_on_rounded,
+                      //           color: AppColors.goldReward,
+                      //           size: 18,
+                      //         ),
+                      //         const SizedBox(width: 4),
+                      //         Text(
+                      //           '${user?.gold ?? 0}',
+                      //           style: const TextStyle(
+                      //             fontWeight: FontWeight.bold,
+                      //             color: AppColors.textPrimary,
+                      //           ),
+                      //         ),
+                      //       ],
+                      //     ),
+                      //   ),
+                      // ],
+                    // ),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -170,7 +205,7 @@ class _ShopTab extends ConsumerWidget {
           itemCount: rewards.length,
           itemBuilder: (context, index) {
             final r = rewards[index];
-            final canAfford = (user?.gold ?? 0) >= r.goldCost;
+            final canAfford = (user?.gems ?? 0) >= r.goldCost;
             final rarityClr = _rarityColor(r.rarity);
 
             return Container(
@@ -254,20 +289,20 @@ class _ShopTab extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         const SizedBox(height: 2),
-                        // Gold cost
+                        // Gem cost
                         Row(
                           children: [
                             const Icon(
-                              Icons.monetization_on_rounded,
+                              Icons.diamond_rounded,
                               size: 13,
-                              color: AppColors.goldRewardDark,
+                              color: Color(0xFF0284C7),
                             ),
                             const SizedBox(width: 3),
                             Text(
-                              '${r.goldCost} Gold',
+                              '${r.goldCost} เพชร',
                               style: const TextStyle(
                                 fontSize: 12,
-                                color: AppColors.goldRewardDark,
+                                color: Color(0xFF0284C7),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -301,6 +336,8 @@ class _ShopTab extends ConsumerWidget {
                                 'แลก "${r.title}" สำเร็จ! เพลิดเพลินกับรางวัลของคุณ',
                               RedeemOutcome.notEnoughGold =>
                                 'เหรียญทองไม่เพียงพอ',
+                              RedeemOutcome.notEnoughGems =>
+                                'เพชรไม่เพียงพอ',
                               RedeemOutcome.inventoryFull =>
                                 'คลังไอเทมเต็มแล้ว ไปขยายช่องคลังที่แท็บ "คลังไอเทม" ก่อน',
                               RedeemOutcome.purchaseLimitReached =>
@@ -435,6 +472,7 @@ class _CustomRewardCard extends ConsumerWidget {
                       final message = switch (outcome) {
                         RedeemOutcome.success => 'แลกรางวัลสำเร็จ',
                         RedeemOutcome.notEnoughGold => 'Gold ไม่พอ',
+                        RedeemOutcome.notEnoughGems => 'เพชรไม่พอ',
                         RedeemOutcome.inventoryFull => 'คลังไอเทมเต็ม',
                         RedeemOutcome.purchaseLimitReached => 'ถึงโควตาการแลกแล้ว',
                       };
