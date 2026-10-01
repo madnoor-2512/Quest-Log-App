@@ -67,7 +67,6 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   void _startLocalTicker(FocusSessionModel session) {
     final startedAt = DateTime.parse(session.startedAt);
     _totalSeconds = session.targetDuration;
-    final totalMs = _totalSeconds * 1000;
 
     void tick() {
       final elapsed = DateTime.now().difference(startedAt).inSeconds;

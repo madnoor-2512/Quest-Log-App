@@ -17,7 +17,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 12;
+  static const int dbVersion = 13;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -211,6 +211,15 @@ class DatabaseHelper {
         "TEXT NOT NULL DEFAULT 'DAILY'",
       );
       await _addColumnIfMissing(db, tableQuests, 'habit_weekdays', 'TEXT');
+    }
+    if (oldVersion < 13) {
+      // บันทึกว่าแคมเปญ “ล้มเหลว” (HP ลดเหลือ 0) ต่างจากแคมเปญ “สำเร็จ” ปกติ
+      await _addColumnIfMissing(
+        db,
+        tableQuests,
+        'is_campaign_failed',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -497,6 +506,7 @@ class DatabaseHelper {
   Future<List<QuestModel>> getQuests({
     String? category,
     bool? isCompleted,
+    bool excludeCheckedInToday = false,
     String orderBy = 'created_at DESC',
   }) async {
     final db = await database;
@@ -510,6 +520,13 @@ class DatabaseHelper {
     if (isCompleted != null) {
       where.add('is_completed = ?');
       whereArgs.add(isCompleted ? 1 : 0);
+    }
+    if (excludeCheckedInToday) {
+      final today = _dateKey(DateTime.now());
+      where.add(
+        'id NOT IN (SELECT quest_id FROM $tableHabitCheckins WHERE checkin_date = ?)',
+      );
+      whereArgs.add(today);
     }
 
     final maps = await db.query(
@@ -619,6 +636,16 @@ class DatabaseHelper {
       }
       return QuestModel.fromMap(maps.first);
     });
+  }
+
+  Future<void> failActiveCampaigns() async {
+    final db = await database;
+    await db.update(
+      tableQuests,
+      {'is_completed': 1, 'is_campaign_failed': 1},
+      where:
+          'habit_target_days IS NOT NULL AND habit_target_days > 0 AND is_completed = 0',
+    );
   }
 
   Future<void> checkInHabitAndUpdateUser({
@@ -1019,9 +1046,7 @@ class DatabaseHelper {
 
       await txn.update(
         tableUsers,
-        isCustom 
-            ? {'gold': currentGold - cost}
-            : {'gems': currentGems - cost},
+        isCustom ? {'gold': currentGold - cost} : {'gems': currentGems - cost},
         where: 'id = ?',
         whereArgs: [userId],
       );
@@ -1294,6 +1319,35 @@ class DatabaseHelper {
       ORDER BY completed_at ASC
     ''',
       [from.toIso8601String(), to.toIso8601String()],
+    );
+    return maps.map((m) => QuestModel.fromMap(m)).toList();
+  }
+
+  /// ดึงเควสต์ที่ทำสำเร็จวันนี้ (ใช้สำหรับหน้า Stats แสดงรายการเสร็จแล้ว)
+  Future<List<QuestModel>> getTodayCompletedQuests({DateTime? now}) async {
+    final db = await database;
+    final today = now ?? DateTime.now();
+    final startOfDay = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).toIso8601String();
+    final endOfDay = DateTime(
+      today.year,
+      today.month,
+      today.day,
+      23,
+      59,
+      59,
+    ).toIso8601String();
+    final maps = await db.rawQuery(
+      '''
+      SELECT * FROM $tableQuests
+      WHERE is_completed = 1
+        AND completed_at BETWEEN ? AND ?
+      ORDER BY completed_at DESC
+    ''',
+      [startOfDay, endOfDay],
     );
     return maps.map((m) => QuestModel.fromMap(m)).toList();
   }

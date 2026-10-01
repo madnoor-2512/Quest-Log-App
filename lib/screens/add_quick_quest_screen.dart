@@ -13,7 +13,9 @@ import '../widgets/rpg_button.dart';
 /// ทันที เก็บเป็น Daily Habit เบื้องหลัง เปิดจาก showAddQuestTypeSheet()
 /// บนหน้า Dashboard
 class AddQuickQuestScreen extends ConsumerStatefulWidget {
-  const AddQuickQuestScreen({super.key});
+  final QuestModel? questToEdit;
+  
+  const AddQuickQuestScreen({super.key, this.questToEdit});
 
   @override
   ConsumerState<AddQuickQuestScreen> createState() =>
@@ -28,6 +30,9 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
   HabitFrequency _frequency = HabitFrequency.daily;
   final Set<int> _customWeekdays = {};
   bool _isSaving = false;
+  bool _hasTargetDays = false;
+  int _targetDays = 7;
+  final _customDaysController = TextEditingController();
 
   static const List<({int weekday, String label})> _weekdayLabels = [
     (weekday: 1, label: 'จ.'),
@@ -40,8 +45,28 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    final q = widget.questToEdit;
+    if (q != null) {
+      _titleController.text = q.title;
+      _difficulty = q.difficulty;
+      _frequency = q.habitFrequency;
+      if (q.habitCustomWeekdays != null) {
+        _customWeekdays.addAll(q.habitCustomWeekdays!);
+      }
+      if (q.habitTargetDays != null && q.habitTargetDays! > 0) {
+        _hasTargetDays = true;
+        _targetDays = q.habitTargetDays!;
+        _customDaysController.text = _targetDays.toString();
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
+    _customDaysController.dispose();
     super.dispose();
   }
 
@@ -79,28 +104,46 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
         .read(rewardCalculatorProvider)
         .calculateQuickQuestReward(difficulty: _difficulty);
 
-    final quest = QuestModel(
-      title: _titleController.text.trim(),
-      category: QuestCategory.daily,
-      goalType: QuestGoalType.dailyHabit,
-      difficulty: _difficulty,
-      expReward: reward.exp,
-      goldReward: reward.gold,
-      isAutoDifficulty: true,
-      createdAt: DateTime.now().toIso8601String(),
-      habitFrequency: _frequency,
-      habitCustomWeekdays: _frequency == HabitFrequency.custom
-          ? (_customWeekdays.toList()..sort())
-          : null,
-    );
+    final isEdit = widget.questToEdit != null;
+    final quest = isEdit
+        ? widget.questToEdit!.copyWith(
+            title: _titleController.text.trim(),
+            difficulty: _difficulty,
+            expReward: reward.exp,
+            goldReward: reward.gold,
+            habitFrequency: _frequency,
+            habitCustomWeekdays: _frequency == HabitFrequency.custom
+                ? (_customWeekdays.toList()..sort())
+                : null,
+            habitTargetDays: _hasTargetDays ? _targetDays : null,
+          )
+        : QuestModel(
+            title: _titleController.text.trim(),
+            category: QuestCategory.daily,
+            goalType: QuestGoalType.dailyHabit,
+            difficulty: _difficulty,
+            expReward: reward.exp,
+            goldReward: reward.gold,
+            isAutoDifficulty: true,
+            createdAt: DateTime.now().toIso8601String(),
+            habitFrequency: _frequency,
+            habitCustomWeekdays: _frequency == HabitFrequency.custom
+                ? (_customWeekdays.toList()..sort())
+                : null,
+            habitTargetDays: _hasTargetDays ? _targetDays : null,
+          );
 
-    await ref.read(questActionsProvider.notifier).addQuest(quest);
+    if (isEdit) {
+      await ref.read(questActionsProvider.notifier).updateQuest(quest);
+    } else {
+      await ref.read(questActionsProvider.notifier).addQuest(quest);
+    }
 
     if (!mounted) return;
     setState(() => _isSaving = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('⚡ สร้างเควสต์ทันใจเรียบร้อยแล้ว!'),
+      SnackBar(
+        content: Text(isEdit ? '💾 บันทึกการแก้ไขเรียบร้อยแล้ว!' : '⚡ สร้างเควสต์ทันใจเรียบร้อยแล้ว!'),
         backgroundColor: AppColors.primaryDark,
       ),
     );
@@ -121,9 +164,15 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
     );
     final effectiveWeekdays = _effectiveWeekdays;
 
+    final isEdit = widget.questToEdit != null;
+    final isCampaign = widget.questToEdit?.isCampaign ?? false;
+    final titleText = isEdit 
+        ? (isCampaign ? 'แก้ไขแคมเปญ' : 'แก้ไขเควสต์ทันใจ')
+        : 'สร้างเควสต์ทันใจ';
+
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('สร้างเควสต์ผจญภัย'), centerTitle: true),
+      appBar: AppBar(title: Text(isEdit ? 'แก้ไขภารกิจ' : 'สร้างเควสต์ผจญภัย'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Form(
@@ -148,22 +197,22 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'สร้างเควสต์ทันใจ',
-                          style: TextStyle(
+                          titleText,
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'ตั้งเป้าหมายประจำวัน ทำเสร็จรับรางวัลทันที',
-                          style: TextStyle(
+                          isEdit ? 'แก้ไขรายละเอียดของภารกิจ' : 'ตั้งเป้าหมายประจำวัน ทำเสร็จรับรางวัลทันที',
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textMuted,
                           ),
@@ -230,9 +279,18 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'ระดับความยาก',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Row(
+                    children: [
+                      const Text(
+                        'ระดับความยาก',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      if (isCampaign)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8.0),
+                          child: Icon(Icons.lock_rounded, size: 14, color: AppColors.textMuted),
+                        ),
+                    ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -255,26 +313,32 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final star = index + 1;
-                  final isSelected = star <= _difficulty;
-                  return IconButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      isSelected
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      size: 36,
-                      color: isSelected
-                          ? AppColors.difficultyColors[_difficulty - 1]
-                          : AppColors.borderLight,
-                    ),
-                    onPressed: () => setState(() => _difficulty = star),
-                  );
-                }),
+              AbsorbPointer(
+                absorbing: isCampaign,
+                child: Opacity(
+                  opacity: isCampaign ? 0.6 : 1.0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final star = index + 1;
+                      final isSelected = star <= _difficulty;
+                      return IconButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          isSelected
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 36,
+                          color: isSelected
+                              ? AppColors.difficultyColors[_difficulty - 1]
+                              : AppColors.borderLight,
+                        ),
+                        onPressed: () => setState(() => _difficulty = star),
+                      );
+                    }),
+                  ),
+                ),
               ),
               Row(
                 children: [
@@ -298,15 +362,28 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
               const SizedBox(height: 20),
 
               // ความถี่ในการทำ
-              const Text(
-                'ความถี่ในการทำ',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              Row(
+                children: [
+                  const Text(
+                    'ความถี่ในการทำ',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  if (isCampaign)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8.0),
+                      child: Icon(Icons.lock_rounded, size: 14, color: AppColors.textMuted),
+                    ),
+                ],
               ),
               const SizedBox(height: 8),
-              Row(
-                children: HabitFrequency.values.map((freq) {
-                  final isSelected = _frequency == freq;
-                  return Expanded(
+              AbsorbPointer(
+                absorbing: isCampaign,
+                child: Opacity(
+                  opacity: isCampaign ? 0.6 : 1.0,
+                  child: Row(
+                    children: HabitFrequency.values.map((freq) {
+                      final isSelected = _frequency == freq;
+                      return Expanded(
                     child: GestureDetector(
                       onTap: () => setState(() => _frequency = freq),
                       child: Container(
@@ -340,7 +417,9 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 10),
+            ),
+          ),
+          const SizedBox(height: 10),
 
               // เลือกวันที่ต้องการปฏิบัติภารกิจ
               const Text(
@@ -354,7 +433,7 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
                   final isCustom = _frequency == HabitFrequency.custom;
                   final isActive = effectiveWeekdays.contains(wd.weekday);
                   return GestureDetector(
-                    onTap: !isCustom
+                    onTap: (!isCustom || isCampaign)
                         ? null
                         : () {
                             setState(() {
@@ -396,6 +475,92 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
                   );
                 }).toList(),
               ),
+              const SizedBox(height: 20),
+
+              // ตั้งเป้าหมายแคมเปญ
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'ตั้งเป้าหมาย (ระยะเวลาสิ้นสุด)',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      if (isCampaign)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8.0),
+                          child: Icon(Icons.lock_rounded, size: 14, color: AppColors.textMuted),
+                        ),
+                    ],
+                  ),
+                  Switch(
+                    value: _hasTargetDays,
+                    onChanged: isCampaign ? null : (val) => setState(() => _hasTargetDays = val),
+                    activeThumbColor: AppColors.primary,
+                  ),
+                ],
+              ),
+              if (!_hasTargetDays)
+                const Text(
+                  'ค่าเริ่มต้น: ทำต่อเนื่อง (ไม่มีวันสิ้นสุด)',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+                ),
+              if (_hasTargetDays) ...[
+                const SizedBox(height: 8),
+                AbsorbPointer(
+                  absorbing: isCampaign,
+                  child: Opacity(
+                    opacity: isCampaign ? 0.6 : 1.0,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildDurationChip(7, '7 วัน'),
+                            _buildDurationChip(14, '14 วัน'),
+                            _buildDurationChip(21, '21 วัน (สร้างนิสัย)'),
+                            _buildDurationChip(30, '30 วัน'),
+                            _buildDurationChip(0, 'กำหนดเอง'),
+                          ],
+                        ),
+                        if (_targetDays != 7 && _targetDays != 14 && _targetDays != 21 && _targetDays != 30) ...[
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextFormField(
+                                  controller: _customDaysController,
+                                  keyboardType: TextInputType.number,
+                                  decoration: InputDecoration(
+                                    hintText: 'จำนวนวัน',
+                                    filled: true,
+                                    fillColor: AppColors.surface,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: const BorderSide(color: AppColors.borderLight),
+                                    ),
+                                  ),
+                                  onChanged: (val) {
+                                    final parsed = int.tryParse(val);
+                                    if (parsed != null && parsed > 0) {
+                                      setState(() => _targetDays = parsed);
+                                    }
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text('วัน', style: TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Reward preview
@@ -472,6 +637,38 @@ class _AddQuickQuestScreenState extends ConsumerState<AddQuickQuestScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+  Widget _buildDurationChip(int days, String label) {
+    // Treat days == 0 as the 'Custom' option
+    final isCustom = days == 0;
+    final isSelected = isCustom 
+        ? (_targetDays != 7 && _targetDays != 14 && _targetDays != 21 && _targetDays != 30)
+        : _targetDays == days;
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            if (isCustom) {
+              // Just trigger showing the text field, keep existing _targetDays if it's already custom
+              if (_targetDays == 7 || _targetDays == 14 || _targetDays == 21 || _targetDays == 30) {
+                 _targetDays = 30; // some default for custom
+                 _customDaysController.text = '30';
+              }
+            } else {
+              _targetDays = days;
+            }
+          });
+        }
+      },
+      selectedColor: AppColors.primaryLight,
+      labelStyle: TextStyle(
+        color: isSelected ? AppColors.primaryDark : AppColors.textSecondary,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
       ),
     );
   }

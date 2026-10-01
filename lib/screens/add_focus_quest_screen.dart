@@ -12,7 +12,9 @@ import '../widgets/rpg_button.dart';
 /// หน้าสร้าง "เควสต์โฟกัส" (Focus Quest) — สำหรับภารกิจที่ต้องใช้เวลาและ
 /// สมาธิ เปิดจาก showAddQuestTypeSheet() บนหน้า Dashboard
 class AddFocusQuestScreen extends ConsumerStatefulWidget {
-  const AddFocusQuestScreen({super.key});
+  final QuestModel? questToEdit;
+
+  const AddFocusQuestScreen({super.key, this.questToEdit});
 
   @override
   ConsumerState<AddFocusQuestScreen> createState() =>
@@ -26,7 +28,23 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
   ActivityType _activityType = ActivityType.mental;
   int _estimatedMinutes = 50;
   int _difficulty = 3;
+  HabitFrequency _frequency = HabitFrequency.daily;
+  final Set<int> _customWeekdays = {};
   bool _isSaving = false;
+
+  static const List<({int weekday, String label})> _weekdayLabels = [
+    (weekday: 1, label: 'จ.'),
+    (weekday: 2, label: 'อ.'),
+    (weekday: 3, label: 'พ.'),
+    (weekday: 4, label: 'พฤ.'),
+    (weekday: 5, label: 'ศ.'),
+    (weekday: 6, label: 'ส.'),
+    (weekday: 7, label: 'อา.'),
+  ];
+
+  List<int> get _effectiveWeekdays => _frequency == HabitFrequency.custom
+      ? _customWeekdays.toList()
+      : _frequency.fixedWeekdays;
 
   static const List<({ActivityType type, String label, IconData icon})>
   _activityOptions = [
@@ -53,6 +71,22 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    final q = widget.questToEdit;
+    if (q != null) {
+      _titleController.text = q.title;
+      _activityType = q.activityType ?? ActivityType.mental;
+      _estimatedMinutes = q.estimatedMinutes ?? 50;
+      _difficulty = q.difficulty;
+      _frequency = q.habitFrequency;
+      if (q.habitCustomWeekdays != null) {
+        _customWeekdays.addAll(q.habitCustomWeekdays!);
+      }
+    }
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     super.dispose();
@@ -71,6 +105,16 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_frequency == HabitFrequency.custom && _customWeekdays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กรุณาเลือกอย่างน้อย 1 วันสำหรับความถี่แบบกำหนดเอง'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
 
     final calculator = ref.read(rewardCalculatorProvider);
     final result = calculator.calculateAutoReward(
@@ -91,26 +135,48 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
 
     setState(() => _isSaving = true);
 
-    final quest = QuestModel(
-      title: _titleController.text.trim(),
-      category: QuestCategory.side,
-      goalType: QuestGoalType.focus,
-      difficulty: _difficulty,
-      activityType: _activityType,
-      estimatedMinutes: _estimatedMinutes,
-      isAutoDifficulty: true,
-      expReward: result.expReward,
-      goldReward: result.goldReward,
-      createdAt: DateTime.now().toIso8601String(),
-    );
+    final isEdit = widget.questToEdit != null;
+    final quest = isEdit
+        ? widget.questToEdit!.copyWith(
+            title: _titleController.text.trim(),
+            difficulty: _difficulty,
+            activityType: _activityType,
+            estimatedMinutes: _estimatedMinutes,
+            expReward: result.expReward,
+            goldReward: result.goldReward,
+            habitFrequency: _frequency,
+            habitCustomWeekdays: _frequency == HabitFrequency.custom
+                ? (_customWeekdays.toList()..sort())
+                : null,
+          )
+        : QuestModel(
+            title: _titleController.text.trim(),
+            category: QuestCategory.side,
+            goalType: QuestGoalType.focus,
+            difficulty: _difficulty,
+            activityType: _activityType,
+            estimatedMinutes: _estimatedMinutes,
+            isAutoDifficulty: true,
+            expReward: result.expReward,
+            goldReward: result.goldReward,
+            createdAt: DateTime.now().toIso8601String(),
+            habitFrequency: _frequency,
+            habitCustomWeekdays: _frequency == HabitFrequency.custom
+                ? (_customWeekdays.toList()..sort())
+                : null,
+          );
 
-    await ref.read(questActionsProvider.notifier).addQuest(quest);
+    if (isEdit) {
+      await ref.read(questActionsProvider.notifier).updateQuest(quest);
+    } else {
+      await ref.read(questActionsProvider.notifier).addQuest(quest);
+    }
 
     if (!mounted) return;
     setState(() => _isSaving = false);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('⏳ สร้างเควสต์โฟกัสเรียบร้อยแล้ว!'),
+      SnackBar(
+        content: Text(isEdit ? '💾 บันทึกการแก้ไขเรียบร้อยแล้ว!' : '⏳ สร้างเควสต์โฟกัสเรียบร้อยแล้ว!'),
         backgroundColor: AppColors.goldRewardDark,
       ),
     );
@@ -131,10 +197,13 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
       difficulty: _difficulty,
       streakBoost: streakBoost,
     );
+    final effectiveWeekdays = _effectiveWeekdays;
+
+    final isEdit = widget.questToEdit != null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(title: const Text('สร้างเควสต์โฟกัส'), centerTitle: true),
+      appBar: AppBar(title: Text(isEdit ? 'แก้ไขภารกิจ' : 'สร้างเควสต์โฟกัส'), centerTitle: true),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(18),
         child: Form(
@@ -159,22 +228,22 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'สร้างเควสต์โฟกัส',
-                          style: TextStyle(
+                          isEdit ? 'แก้ไขเควสต์โฟกัส' : 'สร้างเควสต์โฟกัส',
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'ตั้งเป้าหมายและจัดสรรเวลาเพื่อเข้าสู่สมาธิลึก',
-                          style: TextStyle(
+                          isEdit ? 'แก้ไขรายละเอียดของภารกิจ' : 'ตั้งเป้าหมายและจัดสรรเวลาเพื่อเข้าสู่สมาธิลึก',
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textMuted,
                           ),
@@ -405,6 +474,107 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
               ),
               const SizedBox(height: 20),
 
+              // ความถี่ในการทำ
+              const Text(
+                'ความถี่ในการทำ',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: HabitFrequency.values.map((freq) {
+                  final isSelected = _frequency == freq;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _frequency = freq),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 3),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppColors.primaryDark
+                              : AppColors.surface,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.primaryDark
+                                : AppColors.borderLight,
+                          ),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          freq.displayName,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected
+                                ? Colors.white
+                                : AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 10),
+
+              // เลือกวันที่ต้องการปฏิบัติภารกิจ
+              const Text(
+                'เลือกวันที่ต้องการปฏิบัติภารกิจ:',
+                style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: _weekdayLabels.map((wd) {
+                  final isCustom = _frequency == HabitFrequency.custom;
+                  final isActive = effectiveWeekdays.contains(wd.weekday);
+                  return GestureDetector(
+                    onTap: !isCustom
+                        ? null
+                        : () {
+                            setState(() {
+                              if (_customWeekdays.contains(wd.weekday)) {
+                                _customWeekdays.remove(wd.weekday);
+                              } else {
+                                _customWeekdays.add(wd.weekday);
+                              }
+                            });
+                          },
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? AppColors.primaryDark
+                            : AppColors.surface,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isActive
+                              ? AppColors.primaryDark
+                              : AppColors.borderLight,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        wd.label,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: isActive
+                              ? Colors.white
+                              : (isCustom
+                                    ? AppColors.textSecondary
+                                    : AppColors.textMuted),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
               // Reward preview
               if (!result.isAllowed)
                 Container(
@@ -498,8 +668,8 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
               SizedBox(
                 width: double.infinity,
                 child: RpgButton(
-                  text: 'บันทึกเควสต์โฟกัส',
-                  icon: Icons.hourglass_bottom_rounded,
+                  text: isEdit ? 'บันทึกการแก้ไข' : 'บันทึกเควสต์โฟกัส',
+                  icon: isEdit ? Icons.save_rounded : Icons.hourglass_bottom_rounded,
                   backgroundColor: AppColors.secondary,
                   borderColor: AppColors.secondaryDark,
                   isLoading: _isSaving,

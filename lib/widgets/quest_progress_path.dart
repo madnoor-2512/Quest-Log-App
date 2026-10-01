@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../models/quest_model.dart';
 import '../theme/app_colors.dart';
 
 /// QuestProgressPath
@@ -13,14 +12,14 @@ import '../theme/app_colors.dart';
 /// - ด่านที่ยังล็อคอยู่: รูปแม่กุญแจ รอการปลดล็อก
 /// - โหนดปลายทาง: Boss/Reward Node กล่องสมบัติประจำบท (พร้อมสถานะท้าทาย/เปิดสมบัติ)
 class QuestProgressPath extends StatefulWidget {
-  final List<QuestModel> quests;
+  final int currentProgress;
   final int totalStages;
   final double height;
   final void Function(int stageIndex, String status)? onNodeTap;
 
   const QuestProgressPath({
     super.key,
-    required this.quests,
+    required this.currentProgress,
     this.totalStages = 5,
     this.height = 160,
     this.onNodeTap,
@@ -58,8 +57,28 @@ class _QuestProgressPathState extends State<QuestProgressPath>
 
   @override
   Widget build(BuildContext context) {
-    final completedCount = widget.quests.where((q) => q.isCompleted).length;
+    final completedCount = widget.currentProgress;
     final total = widget.totalStages;
+
+    // คำนวณหน้าปัจจุบัน (บทละ 5 ด่าน)
+    // ถ้ายอด completed = 5 จะขึ้นบทใหม่เป็นด่าน 6-10 เว้นแต่เป็นบอสสุดท้าย
+    int currentPage = (completedCount / 5).floor();
+    if (currentPage * 5 >= total && total > 0) {
+      currentPage = (total - 1) ~/ 5;
+    }
+    // กรณีทำเสร็จหมดแล้ว ให้ค้างหน้าสุดท้าย
+    if (completedCount >= total) {
+      currentPage = (total - 1) ~/ 5;
+    }
+
+    final startNodeIndex = currentPage * 5;
+    final endNodeIndex = math.min(startNodeIndex + 5, total);
+    final nodesInPage = endNodeIndex - startNodeIndex;
+    
+    // Progress ในหน้านี้ (0-5)
+    int pageProgress = completedCount - startNodeIndex;
+    if (pageProgress < 0) pageProgress = 0;
+    if (pageProgress > nodesInPage) pageProgress = nodesInPage;
 
     return SizedBox(
       height: widget.height,
@@ -70,8 +89,8 @@ class _QuestProgressPathState extends State<QuestProgressPath>
           Positioned.fill(
             child: CustomPaint(
               painter: _PreciseWindingPathPainter(
-                nodeCount: total,
-                completedCount: completedCount,
+                nodeCount: nodesInPage,
+                completedCount: pageProgress,
                 topY: nodeTopCenterY,
                 bottomY: nodeBottomCenterY,
               ),
@@ -80,13 +99,16 @@ class _QuestProgressPathState extends State<QuestProgressPath>
 
           // ── โหนดแต่ละด่าน (Checkpoint Nodes) ─────────────────────────
           Row(
-            children: List.generate(total, (index) {
-              final isPassed = index < completedCount;
-              final isBoss = index == total - 1;
-              final isBossActive = isBoss && completedCount == total - 1;
-              final isBossPassed = completedCount >= total;
-              final isActive = !isBoss && index == completedCount;
-              final isEven = index.isEven;
+            children: List.generate(nodesInPage, (localIndex) {
+              final globalIndex = startNodeIndex + localIndex;
+              final isPassed = globalIndex < completedCount;
+              final isFinalBoss = globalIndex == total - 1;
+              final isMiniBoss = (globalIndex + 1) % 5 == 0 && !isFinalBoss;
+              final isBoss = isFinalBoss || isMiniBoss;
+              final isBossActive = isBoss && completedCount == globalIndex;
+              final isBossPassed = completedCount > globalIndex;
+              final isActive = !isBoss && globalIndex == completedCount;
+              final isEven = localIndex.isEven;
 
               return Expanded(
                 child: Padding(
@@ -100,19 +122,21 @@ class _QuestProgressPathState extends State<QuestProgressPath>
                       onTap: () {
                         _showNodeDetails(
                           context,
-                          index: index,
+                          index: globalIndex,
                           isPassed: isPassed,
                           isActive: isActive,
                           isBoss: isBoss,
+                          isFinalBoss: isFinalBoss,
                           isBossActive: isBossActive,
                           isBossPassed: isBossPassed,
                         );
                       },
                       child: _buildCheckpointNode(
-                        index: index,
+                        index: globalIndex,
                         isPassed: isPassed,
                         isActive: isActive,
                         isBoss: isBoss,
+                        isFinalBoss: isFinalBoss,
                         isBossActive: isBossActive,
                         isBossPassed: isBossPassed,
                       ),
@@ -132,6 +156,7 @@ class _QuestProgressPathState extends State<QuestProgressPath>
     required bool isPassed,
     required bool isActive,
     required bool isBoss,
+    required bool isFinalBoss,
     required bool isBossActive,
     required bool isBossPassed,
   }) {
@@ -148,11 +173,13 @@ class _QuestProgressPathState extends State<QuestProgressPath>
                 clipBehavior: Clip.none,
                 children: [
                   Container(
-                    width: 54,
-                    height: 54,
+                    width: isFinalBoss ? 54 : 48,
+                    height: isFinalBoss ? 54 : 48,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFBBF24), Color(0xFFD97706)],
+                      gradient: LinearGradient(
+                        colors: isFinalBoss
+                            ? const [Color(0xFFFBBF24), Color(0xFFD97706)]
+                            : const [Color(0xFFFCA5A5), Color(0xFFDC2626)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
@@ -163,18 +190,20 @@ class _QuestProgressPathState extends State<QuestProgressPath>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFF59E0B).withAlpha(180),
+                          color: isFinalBoss
+                              ? const Color(0xFFF59E0B).withAlpha(180)
+                              : const Color(0xFFDC2626).withAlpha(180),
                           blurRadius: 14,
                           spreadRadius: 2,
                           offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Icon(
-                        Icons.military_tech_rounded,
+                        isFinalBoss ? Icons.military_tech_rounded : Icons.pest_control_rounded,
                         color: Colors.white,
-                        size: 28,
+                        size: isFinalBoss ? 28 : 22,
                       ),
                     ),
                   ),
@@ -208,16 +237,19 @@ class _QuestProgressPathState extends State<QuestProgressPath>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
+                  color: isFinalBoss ? const Color(0xFFFEF3C7) : const Color(0xFFFEE2E2),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFFD97706), width: 1),
+                  border: Border.all(
+                    color: isFinalBoss ? const Color(0xFFD97706) : const Color(0xFFB91C1C), 
+                    width: 1
+                  ),
                 ),
-                child: const Text(
-                  'ด่านบอส!',
+                child: Text(
+                  isFinalBoss ? 'บอสใหญ่!' : 'มินิบอส',
                   style: TextStyle(
                     fontSize: 9,
                     fontWeight: FontWeight.w900,
-                    color: Color(0xFFB45309),
+                    color: isFinalBoss ? const Color(0xFFB45309) : const Color(0xFF991B1B),
                   ),
                 ),
               ),
@@ -285,7 +317,9 @@ class _QuestProgressPathState extends State<QuestProgressPath>
                 ),
                 const SizedBox(width: 2),
                 Text(
-                  isBossPassed ? 'สมบัติ!' : 'หีบบอส',
+                  isBossPassed 
+                      ? (isFinalBoss ? 'หีบบอสใหญ่!' : 'หีบรางวัล') 
+                      : (isFinalBoss ? 'หีบบอส' : 'มินิบอส'),
                   style: TextStyle(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
@@ -474,6 +508,7 @@ class _QuestProgressPathState extends State<QuestProgressPath>
     required bool isPassed,
     required bool isActive,
     required bool isBoss,
+    required bool isFinalBoss,
     required bool isBossActive,
     required bool isBossPassed,
   }) {
@@ -482,20 +517,26 @@ class _QuestProgressPathState extends State<QuestProgressPath>
     IconData icon;
     Color color;
 
+    final chapter = (index ~/ 5) + 1;
+
     if (isBoss) {
       if (isBossPassed) {
-        title = '👑 พิชิตบทที่ 1 สำเร็จแล้ว!';
-        desc = 'ยินดีด้วย! คุณเคลียร์ครบ 5 ด่านในป่าแห่งความมุ่งมั่น และเปิดกล่องสมบัติแล้ว (+5 💎 เพชร, +100 🪙 ทอง)';
+        title = isFinalBoss ? '👑 พิชิตแคมเปญสำเร็จ!' : '🎉 พิชิตมินิบอส บทที่ $chapter';
+        desc = isFinalBoss 
+            ? 'ยินดีด้วย! คุณเคลียร์ครบทุกด่านและเปิดกล่องสมบัติบอสใหญ่แล้ว (+10 💎 เพชร, +300 🪙 ทอง)'
+            : 'คุณเคลียร์บทนี้สำเร็จและได้รับสมบัติย่อยแล้ว เดินหน้าต่อไป!';
         icon = Icons.card_giftcard_rounded;
         color = const Color(0xFFD97706);
       } else if (isBossActive) {
-        title = '⚔️ ด่านที่ 5 : บอสประจำบท (Boss Challenge)';
-        desc = 'คุณมาถึงด่านสุดท้ายแล้ว! เคลียร์อีกเพียง 1 เควสต์เพื่อโค่นบอสและเปิดหีบสมบัติประจำบท (+5 💎 เพชร, +100 🪙 ทอง)!';
-        icon = Icons.military_tech_rounded;
-        color = const Color(0xFFD97706);
+        title = isFinalBoss ? '⚔️ บอสใหญ่ประจำแคมเปญ!' : '👹 มินิบอส บทที่ $chapter';
+        desc = isFinalBoss
+            ? 'ด่านสุดท้ายของแคมเปญนี้! เคลียร์ให้สำเร็จเพื่อเปิดหีบสมบัติบอสใหญ่ (+10 💎, +300 🪙)'
+            : 'เคลียร์เควสต์วันนี้เพื่อโค่นมินิบอสและรับหีบรางวัลประจำบท';
+        icon = isFinalBoss ? Icons.military_tech_rounded : Icons.pest_control_rounded;
+        color = isFinalBoss ? const Color(0xFFD97706) : const Color(0xFFDC2626);
       } else {
-        title = '🔒 หีบสมบัติบอสประจำบท (Chapter Boss)';
-        desc = 'เคลียร์เควสต์ด่าน 1 ถึง 4 ให้สำเร็จก่อน เพื่อปลดล็อกเส้นทางมาท้าทายบอสและรับรางวัลใหญ่';
+        title = isFinalBoss ? '🔒 หีบสมบัติบอสใหญ่' : '🔒 มินิบอส บทที่ $chapter';
+        desc = 'เคลียร์เควสต์ด่านก่อนหน้าให้สำเร็จก่อน เพื่อปลดล็อกเส้นทางมาท้าทายบอส';
         icon = Icons.lock_rounded;
         color = const Color(0xFF64748B);
       }

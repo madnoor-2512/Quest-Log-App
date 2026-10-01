@@ -8,12 +8,14 @@ class StatBadge extends StatelessWidget {
   final StatBadgeType type;
   final int value;
   final bool compact;
+  final bool isFrozen;
 
   const StatBadge({
     super.key,
     required this.type,
     required this.value,
     this.compact = false,
+    this.isFrozen = false,
   });
 
   @override
@@ -62,6 +64,9 @@ class StatBadge extends StatelessWidget {
       case StatBadgeType.gold:
         return (Icons.monetization_on_rounded, const Color(0xFFB45309), AppColors.goldLight, '');
       case StatBadgeType.streak:
+        if (isFrozen) {
+          return (Icons.ac_unit_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE), '❄️');
+        }
         return (Icons.local_fire_department_rounded, AppColors.secondary, AppColors.secondaryLight, '🔥');
       case StatBadgeType.gem:
         return (Icons.diamond_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE), '💎');

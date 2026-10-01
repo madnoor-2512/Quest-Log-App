@@ -30,8 +30,6 @@ class _QuestCardState extends State<QuestCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _completeCtrl;
   late Animation<double> _fadeAnim;
-  late Animation<Offset> _floatAnim;
-  late Animation<double> _floatFadeAnim;
   bool _completing = false;
 
   @override

@@ -16,6 +16,7 @@ class QuestModel {
   final int? awardedGold;
   final String? dueDate; // ISO8601
   final bool isCompleted;
+  final bool isCampaignFailed; // true = แคมเปญแตก (HP=0), false = ปกติ
   final String? completedAt; // ISO8601
   final String createdAt; // ISO8601
   final int? habitStartMinute;
@@ -40,6 +41,7 @@ class QuestModel {
     this.awardedGold,
     this.dueDate,
     this.isCompleted = false,
+    this.isCampaignFailed = false,
     this.completedAt,
     required this.createdAt,
     this.habitStartMinute,
@@ -59,6 +61,8 @@ class QuestModel {
       habitFrequency == HabitFrequency.custom
       ? (habitCustomWeekdays ?? const [])
       : habitFrequency.fixedWeekdays;
+      
+  bool get isCampaign => habitTargetDays != null && habitTargetDays! > 0;
 
   QuestModel copyWith({
     int? id,
@@ -83,6 +87,7 @@ class QuestModel {
     int? habitTargetDays,
     HabitFrequency? habitFrequency,
     List<int>? habitCustomWeekdays,
+    bool? isCampaignFailed,
   }) {
     return QuestModel(
       id: id ?? this.id,
@@ -107,6 +112,7 @@ class QuestModel {
       habitTargetDays: habitTargetDays ?? this.habitTargetDays,
       habitFrequency: habitFrequency ?? this.habitFrequency,
       habitCustomWeekdays: habitCustomWeekdays ?? this.habitCustomWeekdays,
+      isCampaignFailed: isCampaignFailed ?? this.isCampaignFailed,
     );
   }
 
@@ -134,6 +140,7 @@ class QuestModel {
       'habit_target_days': habitTargetDays,
       'habit_frequency': habitFrequency.dbValue,
       'habit_weekdays': habitCustomWeekdays?.join(','),
+      'is_campaign_failed': isCampaignFailed ? 1 : 0,
     };
   }
 
@@ -167,6 +174,7 @@ class QuestModel {
                 .map((s) => int.parse(s))
                 .toList()
           : null,
+      isCampaignFailed: (map['is_campaign_failed'] as int? ?? 0) == 1,
     );
   }
 

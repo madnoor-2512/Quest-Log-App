@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
 import 'core_providers.dart';
+import 'quest_providers.dart';
 
 /// Broadcast StreamController for level-up events
 final levelUpEventStreamController = StreamController<int>.broadcast();
@@ -62,6 +63,12 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
       next = next.applyHpDamage(missedDays * 20);
     }
     await ref.read(databaseHelperProvider).updateUser(next);
+    
+    if (next.currentHp <= 0) {
+      await ref.read(databaseHelperProvider).failActiveCampaigns();
+      ref.invalidate(questListProvider);
+    }
+
     return next;
   }
 
@@ -124,6 +131,13 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     if (current == null) return;
     final updated = current.applyHpDamage(damage);
     await ref.read(databaseHelperProvider).updateUser(updated);
+    
+    // หาก HP เหลือ 0 ให้ลบ/ปิดแคมเปญทั้งหมด (Game Over สำหรับแคมเปญ)
+    if (updated.currentHp <= 0) {
+      await ref.read(databaseHelperProvider).failActiveCampaigns();
+      ref.invalidate(questListProvider);
+    }
+
     state = AsyncValue.data(updated);
 
     // if (didLevelUp) {
