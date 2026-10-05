@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../models/user_model.dart';
 // import '../providers/auth_provider.dart';
 import '../providers/user_provider.dart';
@@ -7,6 +10,7 @@ import '../services/gamification_config.dart';
 import '../theme/app_avatars.dart';
 import '../theme/app_colors.dart';
 import '../widgets/exp_bar.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/rpg_button.dart';
 
 /// Edit Profile ("จัดการโปรไฟล์ / Quest Profile") — แก้ไขชื่อ, username,
@@ -26,7 +30,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _usernameController;
   late final TextEditingController _mottoController;
+  final ImagePicker _imagePicker = ImagePicker();
   late int _selectedAvatar;
+  String? _selectedAvatarImageBase64;
   RpgClassPath? _selectedClass;
   bool _isSaving = false;
 
@@ -40,6 +46,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     );
     _mottoController = TextEditingController(text: currentUser?.motto ?? '');
     _selectedAvatar = currentUser?.avatarIndex ?? 0;
+    _selectedAvatarImageBase64 = currentUser?.avatarImageBase64;
     _selectedClass = currentUser?.rpgClass;
   }
 
@@ -60,14 +67,16 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         .updateProfile(
           name: _nameController.text.trim(),
           avatarIndex: _selectedAvatar,
+          avatarImageBase64: _selectedAvatarImageBase64,
+          clearAvatarImage: _selectedAvatarImageBase64 == null,
           username: _usernameController.text.trim().isEmpty
               ? null
               : _usernameController.text.trim(),
           motto: _mottoController.text.trim().isEmpty
               ? null
               : _mottoController.text.trim(),
-            clearUsername: _usernameController.text.trim().isEmpty,
-            clearMotto: _mottoController.text.trim().isEmpty,
+          clearUsername: _usernameController.text.trim().isEmpty,
+          clearMotto: _mottoController.text.trim().isEmpty,
           rpgClass: _selectedClass,
         );
 
@@ -81,6 +90,27 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ),
     );
     Navigator.of(context).pop();
+  }
+
+  Future<void> _pickAvatarImage() async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 82,
+        requestFullMetadata: false,
+      );
+      if (image == null || !mounted) return;
+      final bytes = await image.readAsBytes();
+      if (!mounted) return;
+      setState(() => _selectedAvatarImageBase64 = base64Encode(bytes));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('เลือกรูปโปรไฟล์ไม่สำเร็จ: $error')),
+      );
+    }
   }
 
   @override
@@ -187,8 +217,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 const SizedBox(height: 16),
 
                 const Text(
-                  'เลือกอวาตาร์',
+                  'รูปโปรไฟล์',
                   style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isSaving ? null : _pickAvatarImage,
+                  icon: const Icon(Icons.add_a_photo_outlined),
+                  label: const Text('เลือกรูปจากอุปกรณ์'),
+                ),
+                if (_selectedAvatarImageBase64 != null)
+                  TextButton.icon(
+                    onPressed: _isSaving
+                        ? null
+                        : () =>
+                              setState(() => _selectedAvatarImageBase64 = null),
+                    icon: const Icon(Icons.person_outline_rounded),
+                    label: const Text('ใช้ไอคอนอวาตาร์แทน'),
+                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'หรือเลือกไอคอนตัวละคร',
+                  style: TextStyle(fontSize: 12, color: AppColors.textMuted),
                 ),
                 const SizedBox(height: 12),
                 Center(
@@ -197,9 +247,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     spacing: 12,
                     runSpacing: 12,
                     children: List.generate(heroAvatarIcons.length, (index) {
-                      final isSelected = _selectedAvatar == index;
+                      final isSelected =
+                          _selectedAvatarImageBase64 == null &&
+                          _selectedAvatar == index;
                       return GestureDetector(
-                        onTap: () => setState(() => _selectedAvatar = index),
+                        onTap: () => setState(() {
+                          _selectedAvatar = index;
+                          _selectedAvatarImageBase64 = null;
+                        }),
                         child: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -249,18 +304,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Widget _buildHeader(UserModel? user) {
     return Column(
       children: [
-        Container(
-          width: 92,
-          height: 92,
-          decoration: const BoxDecoration(
-            color: AppColors.primary,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            heroAvatarIcon(_selectedAvatar),
-            size: 52,
-            color: Colors.white,
-          ),
+        ProfileAvatar(
+          avatarIndex: _selectedAvatar,
+          imageBase64: _selectedAvatarImageBase64,
+          size: 92,
+          iconSize: 52,
+          backgroundColor: AppColors.primary,
+          iconColor: Colors.white,
+          borderColor: AppColors.primaryDark,
+          borderWidth: 2,
         ),
         const SizedBox(height: 10),
         Text(

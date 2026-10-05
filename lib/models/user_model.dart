@@ -79,6 +79,7 @@ class UserModel {
   final int streakCount;
   final String? lastActiveDate; // ISO8601 string, e.g. 2026-09-17
   final int avatarIndex; // index เข้า heroAvatarIcons ใน theme/app_avatars.dart
+  final String? avatarImageBase64;
   final int inventoryCapacity; // จำนวนช่องคลังไอเทมสูงสุด ขยายได้ด้วย Gold
   final String? username; // @handle แสดงในโปรไฟล์ ไม่ผูกกับ auth ใดๆ
   final String? motto; // คติประจำใจ / bio สั้นๆ
@@ -104,6 +105,7 @@ class UserModel {
     this.streakCount = 0,
     this.lastActiveDate,
     this.avatarIndex = 0,
+    this.avatarImageBase64,
     this.inventoryCapacity = 20,
     this.username,
     this.motto,
@@ -208,6 +210,8 @@ class UserModel {
     int? streakCount,
     String? lastActiveDate,
     int? avatarIndex,
+    String? avatarImageBase64,
+    bool clearAvatarImage = false,
     int? inventoryCapacity,
     String? username,
     String? motto,
@@ -238,6 +242,9 @@ class UserModel {
       streakCount: streakCount ?? this.streakCount,
       lastActiveDate: lastActiveDate ?? this.lastActiveDate,
       avatarIndex: avatarIndex ?? this.avatarIndex,
+      avatarImageBase64: clearAvatarImage
+          ? null
+          : (avatarImageBase64 ?? this.avatarImageBase64),
       inventoryCapacity: inventoryCapacity ?? this.inventoryCapacity,
       username: clearUsername ? null : (username ?? this.username),
       motto: clearMotto ? null : (motto ?? this.motto),
@@ -271,6 +278,7 @@ class UserModel {
       'streak_count': streakCount,
       'last_active_date': lastActiveDate,
       'avatar_index': avatarIndex,
+      'avatar_image_base64': avatarImageBase64,
       'inventory_capacity': inventoryCapacity,
       'username': username,
       'motto': motto,
@@ -301,6 +309,7 @@ class UserModel {
       streakCount: map['streak_count'] as int? ?? 0,
       lastActiveDate: map['last_active_date'] as String?,
       avatarIndex: map['avatar_index'] as int? ?? 0,
+      avatarImageBase64: map['avatar_image_base64'] as String?,
       inventoryCapacity: map['inventory_capacity'] as int? ?? 20,
       username: map['username'] as String?,
       motto: map['motto'] as String?,

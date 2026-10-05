@@ -324,6 +324,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
   Future<void> updateProfile({
     required String name,
     int? avatarIndex,
+    String? avatarImageBase64,
+    bool clearAvatarImage = false,
     String? username,
     String? motto,
     RpgClassPath? rpgClass,
@@ -336,6 +338,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     final updated = current.copyWith(
       name: name,
       avatarIndex: avatarIndex,
+      avatarImageBase64: avatarImageBase64,
+      clearAvatarImage: clearAvatarImage,
       username: username,
       motto: motto,
       rpgClass: rpgClass,

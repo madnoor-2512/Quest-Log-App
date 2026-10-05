@@ -17,7 +17,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 14;
+  static const int dbVersion = 15;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -233,6 +233,9 @@ class DatabaseHelper {
         'WHERE habit_target_days IS NOT NULL AND habit_target_days > 0 AND is_completed = 0',
       );
     }
+    if (oldVersion < 15) {
+      await _addColumnIfMissing(db, tableUsers, 'avatar_image_base64', 'TEXT');
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -269,6 +272,7 @@ class DatabaseHelper {
         streak_count INTEGER NOT NULL DEFAULT 0,
         last_active_date TEXT,
         avatar_index INTEGER NOT NULL DEFAULT 0,
+        avatar_image_base64 TEXT,
         inventory_capacity INTEGER NOT NULL DEFAULT 20,
         username TEXT,
         motto TEXT,

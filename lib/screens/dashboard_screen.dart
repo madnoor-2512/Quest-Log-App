@@ -11,9 +11,9 @@ import '../providers/core_providers.dart';
 import '../providers/focus_providers.dart';
 import '../providers/quest_providers.dart';
 import '../providers/user_provider.dart';
-import '../theme/app_avatars.dart';
 import '../theme/app_colors.dart';
 import '../widgets/level_up_overlay.dart';
+import '../widgets/profile_avatar.dart';
 import '../widgets/quest_card.dart';
 import '../widgets/quest_progress_path.dart';
 import '../widgets/stat_badge.dart';
@@ -306,19 +306,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
               child: Row(
                 children: [
-                  Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryLight,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.primary, width: 2),
-                    ),
-                    child: Icon(
-                      heroAvatarIcon(user?.avatarIndex ?? 0),
-                      size: 28,
-                      color: AppColors.primaryDark,
-                    ),
+                  ProfileAvatar(
+                    avatarIndex: user?.avatarIndex ?? 0,
+                    imageBase64: user?.avatarImageBase64,
+                    size: 52,
+                    iconSize: 28,
+                    borderColor: AppColors.primary,
+                    borderWidth: 2,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -767,24 +761,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      Container(
-                        width: 72,
-                        height: 72,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryLight,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: isCriticalHp
-                                ? AppColors.error
-                                : AppColors.primary,
-                            width: 3,
-                          ),
-                        ),
-                        child: Icon(
-                          heroAvatarIcon(user.avatarIndex),
-                          size: 38,
-                          color: AppColors.primaryDark,
-                        ),
+                      ProfileAvatar(
+                        avatarIndex: user.avatarIndex,
+                        imageBase64: user.avatarImageBase64,
+                        size: 72,
+                        iconSize: 38,
+                        borderColor: isCriticalHp
+                            ? AppColors.error
+                            : AppColors.primary,
+                        borderWidth: 3,
+                        borderRadius: 16,
                       ),
                       // Level badge
                       Positioned(
