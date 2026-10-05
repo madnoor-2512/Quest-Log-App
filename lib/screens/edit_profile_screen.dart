@@ -102,29 +102,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     horizontal: 10,
                     vertical: 5,
                   ),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondaryLight,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.local_fire_department_rounded,
-                        size: 14,
-                        color: AppColors.secondaryDark,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        '${user.streakDays} วัน',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.secondaryDark,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
             ),

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../services/gamification_config.dart';
 import '../theme/app_colors.dart';
 
 /// QuestProgressPath
@@ -33,9 +34,6 @@ class _QuestProgressPathState extends State<QuestProgressPath>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
-
-  static const double nodeTopCenterY = 38.0;
-  static const double nodeBottomCenterY = 108.0;
 
   @override
   void initState() {
@@ -80,6 +78,12 @@ class _QuestProgressPathState extends State<QuestProgressPath>
     if (pageProgress < 0) pageProgress = 0;
     if (pageProgress > nodesInPage) pageProgress = nodesInPage;
 
+    final topY = math.max(26.0, widget.height * 0.28);
+    final bottomY = math.min(
+      math.max(52.0, widget.height - 28.0),
+      math.max(topY + 46.0, widget.height * 0.68),
+    );
+
     return SizedBox(
       height: widget.height,
       child: Stack(
@@ -91,8 +95,8 @@ class _QuestProgressPathState extends State<QuestProgressPath>
               painter: _PreciseWindingPathPainter(
                 nodeCount: nodesInPage,
                 completedCount: pageProgress,
-                topY: nodeTopCenterY,
-                bottomY: nodeBottomCenterY,
+                topY: topY,
+                bottomY: bottomY,
               ),
             ),
           ),
@@ -109,11 +113,14 @@ class _QuestProgressPathState extends State<QuestProgressPath>
               final isBossPassed = completedCount > globalIndex;
               final isActive = !isBoss && globalIndex == completedCount;
               final isEven = localIndex.isEven;
+              final topPadding = isEven
+                  ? 10.0
+                  : math.max(18.0, widget.height * 0.34);
 
               return Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(
-                    top: isEven ? 12.0 : 82.0,
+                    top: topPadding,
                   ),
                   child: Align(
                     alignment: Alignment.topCenter,
@@ -523,15 +530,15 @@ class _QuestProgressPathState extends State<QuestProgressPath>
       if (isBossPassed) {
         title = isFinalBoss ? '👑 พิชิตแคมเปญสำเร็จ!' : '🎉 พิชิตมินิบอส บทที่ $chapter';
         desc = isFinalBoss 
-            ? 'ยินดีด้วย! คุณเคลียร์ครบทุกด่านและเปิดกล่องสมบัติบอสใหญ่แล้ว (+10 💎 เพชร, +300 🪙 ทอง)'
+            ? 'ยินดีด้วย! คุณเคลียร์ครบทุกด่านและเปิดกล่องสมบัติบอสใหญ่แล้ว (+${GamificationConfig.finalBossDiamondMin}-${GamificationConfig.finalBossDiamondMax} 💎 เพชร, +300 🪙 ทอง)'
             : 'คุณเคลียร์บทนี้สำเร็จและได้รับสมบัติย่อยแล้ว เดินหน้าต่อไป!';
         icon = Icons.card_giftcard_rounded;
         color = const Color(0xFFD97706);
       } else if (isBossActive) {
         title = isFinalBoss ? '⚔️ บอสใหญ่ประจำแคมเปญ!' : '👹 มินิบอส บทที่ $chapter';
         desc = isFinalBoss
-            ? 'ด่านสุดท้ายของแคมเปญนี้! เคลียร์ให้สำเร็จเพื่อเปิดหีบสมบัติบอสใหญ่ (+10 💎, +300 🪙)'
-            : 'เคลียร์เควสต์วันนี้เพื่อโค่นมินิบอสและรับหีบรางวัลประจำบท';
+            ? 'ด่านสุดท้ายของแคมเปญนี้! เคลียร์ให้สำเร็จเพื่อเปิดหีบสมบัติบอสใหญ่ (+${GamificationConfig.finalBossDiamondMin}-${GamificationConfig.finalBossDiamondMax} 💎, +300 🪙)'
+            : 'เคลียร์เควสต์วันนี้เพื่อโค่นมินิบอสและรับหีบรางวัลประจำบท (+${GamificationConfig.miniBossDiamondMin}-${GamificationConfig.miniBossDiamondMax} 💎)';
         icon = isFinalBoss ? Icons.military_tech_rounded : Icons.pest_control_rounded;
         color = isFinalBoss ? const Color(0xFFD97706) : const Color(0xFFDC2626);
       } else {

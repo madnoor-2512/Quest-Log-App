@@ -22,7 +22,9 @@ import 'add_focus_quest_screen.dart';
 import 'add_quest_type_sheet.dart';
 import 'add_quick_quest_screen.dart';
 import 'focus_screen.dart';
-import 'member_center_screen.dart';
+import 'edit_profile_screen.dart';
+import 'login_screen.dart';
+import 'quest_log_screen.dart';
 import 'rewards_screen.dart';
 import 'settings/settings_main_screen.dart';
 import 'stats_screen.dart';
@@ -40,12 +42,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   int _currentBottomNav = 0;
   int? _showingLevelUp;
 
-  // Daily quest filter for the "หน้าหลัก" tab (0=ทั้งหมด, 1=ค้างอยู่, 2=เสร็จแล้ว)
+  // Daily quest filter for the "หน้าหลัก" tab (0=ทั้งหมด, 1=เควสทันใจ, 2=เควสโฟกัส)
   int _dailyFilterIndex = 0;
 
   // Countdown timer for daily quest reset
   Timer? _resetTimer;
   Duration _timeUntilReset = Duration.zero;
+  DateTime? _lastObservedDay;
+
+  // Campaign carousel state on dashboard
+  final PageController _campaignPageController = PageController();
+  int _campaignPageIndex = 0;
 
   // Critical HP pulse animation
   late AnimationController _criticalHpController;
@@ -71,13 +78,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   @override
   void dispose() {
     _resetTimer?.cancel();
+    _campaignPageController.dispose();
     _criticalHpController.dispose();
     super.dispose();
   }
 
   void _calculateTimeUntilReset() {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final previousDay = _lastObservedDay;
+    if (previousDay != null && today.isAfter(previousDay)) {
+      unawaited(ref.read(userProvider.notifier).evaluateFrozenStreak(now: now));
+    }
+    _lastObservedDay = today;
     setState(() {
       _timeUntilReset = tomorrow.difference(now);
     });
@@ -126,7 +140,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       // จะเปิดป๊อปอัปเลือกประเภทเควสต์ผ่าน showAddQuestTypeSheet() แทน
       // (ดู onDestinationSelected ด้านล่าง) ช่องนี้จึงไม่ถูกแสดงจริง
       const SizedBox.shrink(),
-      const StatsScreen(),
+      StatsScreen(onQuestTap: _showQuestDetailsBottomSheet),
       const RewardsScreen(),
     ];
 
@@ -334,90 +348,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
             ),
 
-            const SizedBox(height: 12),
-
-            // Wallet quick stats
-            Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE0F2FE),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF7DD3FC)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.diamond_rounded,
-                          size: 18,
-                          color: Color(0xFF0284C7),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${user?.gems ?? 0} เพชร',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0369A1),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: AppColors.goldLight,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFFFDE68A)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.monetization_on_rounded,
-                          size: 18,
-                          color: Color(0xFFB45309),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${user?.gold ?? 0} Gold',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFFB45309),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-
             const SizedBox(height: 20),
             const Divider(color: AppColors.border),
             const SizedBox(height: 10),
 
             _buildDrawerItem(
-              icon: Icons.shield_rounded,
-              title: 'ศูนย์สมาชิก (Guild Hall)',
+              icon: Icons.person_rounded,
+              title: 'แก้ไขโปรไฟล์',
               color: AppColors.primary,
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const MemberCenterScreen()),
+                  MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                );
+              },
+            ),
+            _buildDrawerItem(
+              icon: Icons.menu_book_rounded,
+              title: 'สมุดภารกิจ',
+              color: AppColors.primaryDark,
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => QuestLogScreen(
+                      onQuestTap: _showQuestDetailsBottomSheet,
+                    ),
+                  ),
                 );
               },
             ),
             _buildDrawerItem(
               icon: Icons.emoji_events_rounded,
-              title: 'ความสำเร็จ (Achievements)',
+              title: 'ความสำเร็จ',
               color: AppColors.levelGold,
               onTap: () {
                 Navigator.pop(context);
@@ -429,7 +394,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
             _buildDrawerItem(
               icon: Icons.storefront_rounded,
-              title: 'ร้านค้ารางวัล (Shop & Rewards)',
+              title: 'ร้านค้ารางวัล',
               color: AppColors.secondary,
               onTap: () {
                 Navigator.pop(context);
@@ -443,7 +408,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
             _buildDrawerItem(
               icon: Icons.inventory_2_rounded,
-              title: 'คลังไอเทม (Inventory)',
+              title: 'คลังไอเทม',
               color: const Color(0xFF7C3AED),
               onTap: () {
                 Navigator.pop(context);
@@ -457,7 +422,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
             _buildDrawerItem(
               icon: Icons.menu_book_rounded,
-              title: 'คู่มือการเล่น (Tutorials)',
+              title: 'คู่มือการเล่น',
               color: const Color(0xFF0D9488),
               onTap: () {
                 Navigator.pop(context);
@@ -469,7 +434,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
             _buildDrawerItem(
               icon: Icons.settings_rounded,
-              title: 'ตั้งค่าระบบ (Settings)',
+              title: 'ตั้งค่าระบบ',
               color: AppColors.textSecondary,
               onTap: () {
                 Navigator.pop(context);
@@ -477,6 +442,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   context,
                   MaterialPageRoute(builder: (_) => const SettingsMainScreen()),
                 );
+              },
+            ),
+
+            const SizedBox(height: 180),
+            _buildDrawerItem(
+              icon: Icons.logout_rounded,
+              title: 'ออกจากระบบ',
+              color: AppColors.error,
+              onTap: () {
+                Navigator.pop(context);
+                _confirmLogout(context);
               },
             ),
           ],
@@ -514,6 +490,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         color: AppColors.textMuted,
       ),
       onTap: onTap,
+    );
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('ออกจากระบบ?'),
+        content: const Text('ข้อมูลความคืบหน้าจะยังคงอยู่ในเครื่องนี้'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('ยกเลิก'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text(
+              'ออกจากระบบ',
+              style: TextStyle(color: AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await ref.read(userProvider.notifier).logout();
+
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
     );
   }
 
@@ -680,7 +689,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // ─── Home Dashboard Body ───────────────────────────────────────────────────
 
   Widget _buildHomeDashboard(UserModel? user) {
-    final dailyQuestsAsync = ref.watch(questListProvider(QuestFilter.daily));
+    final dailyQuestsAsync = ref.watch(todayFrequencyQuestsProvider);
     final allQuestsAsync = ref.watch(questListProvider(QuestFilter.all));
 
     return SingleChildScrollView(
@@ -696,7 +705,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           const SizedBox(height: 14),
 
           // ── Section 3: Chapter / Story Progress Card ───────────────────────
-          _buildChapterCard(dailyQuestsAsync, allQuestsAsync),
+          _buildChapterCard(allQuestsAsync),
 
           const SizedBox(height: 14),
 
@@ -1076,12 +1085,72 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   // ─── Section 3: World Map & Chapter Progress Card ──────────────────────────
 
-  Widget _buildChapterCard(
-    AsyncValue<List<QuestModel>> dailyQuestsAsync,
-    AsyncValue<List<QuestModel>> allQuestsAsync,
-  ) {
-    final dailyQuests = dailyQuestsAsync.valueOrNull ?? [];
-    final completed = dailyQuests.where((q) => q.isCompleted).length;
+  Widget _buildChapterCard(AsyncValue<List<QuestModel>> allQuestsAsync) {
+    if (allQuestsAsync.isLoading) {
+      return const SizedBox(
+        height: 192,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (allQuestsAsync.hasError) {
+      return SizedBox(
+        height: 192,
+        child: Center(child: Text('ข้อผิดพลาด: ${allQuestsAsync.error}')),
+      );
+    }
+
+    final allQuests = allQuestsAsync.valueOrNull ?? [];
+    final activeCampaigns = allQuests
+        .where(
+          (quest) =>
+              quest.isCampaign && !quest.isCompleted && !quest.isCampaignFailed,
+        )
+        .toList();
+    QuestModel? failedCampaign;
+    for (final quest in allQuests) {
+      if (quest.isCampaign &&
+          quest.isCampaignFailed &&
+          failedCampaign == null) {
+        failedCampaign = quest;
+      }
+    }
+
+    if (activeCampaigns.isEmpty) {
+      return _buildCampaignInviteCard(failedCampaign: failedCampaign);
+    }
+
+    final progressMap = <int, AsyncValue<int>>{
+      for (final campaign in activeCampaigns)
+        if (campaign.id != null)
+          campaign.id!: ref.watch(campaignCheckinCountProvider(campaign.id!)),
+    };
+
+    final sortedCampaigns = List<QuestModel>.from(activeCampaigns)
+      ..sort((a, b) {
+        final aProgress = progressMap[a.id] ?? const AsyncValue<int>.data(0);
+        final bProgress = progressMap[b.id] ?? const AsyncValue<int>.data(0);
+        final aCompleted = aProgress.valueOrNull ?? 0;
+        final bCompleted = bProgress.valueOrNull ?? 0;
+        final aTotal = a.habitTargetDays ?? 1;
+        final bTotal = b.habitTargetDays ?? 1;
+
+        final aRemaining = (aTotal - aCompleted).clamp(0, aTotal);
+        final bRemaining = (bTotal - bCompleted).clamp(0, bTotal);
+        final remainingCompare = aRemaining.compareTo(bRemaining);
+        if (remainingCompare != 0) {
+          return remainingCompare;
+        }
+
+        final aRatio = aTotal > 0 ? aCompleted / aTotal : 0.0;
+        final bRatio = bTotal > 0 ? bCompleted / bTotal : 0.0;
+        return bRatio.compareTo(aRatio);
+      });
+
+    if (_campaignPageIndex >= sortedCampaigns.length) {
+      _campaignPageIndex = 0;
+    }
+
+    final pageCount = sortedCampaigns.length;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1100,87 +1169,225 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Chapter header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+          if (pageCount > 1)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.explore_rounded,
-                        size: 18,
-                        color: AppColors.primaryDark,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'บทที่ 1 : ป่าแห่งความมุ่งมั่น',
-                        style: GoogleFonts.prompt(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'แผนที่ผจญภัย',
+                    style: GoogleFonts.prompt(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 24),
-                    child: Text(
-                      'Whispering Woods • ด่าน ${(completed >= 5) ? 5 : (completed + 1)}/5 ${completed >= 5 ? 'พิชิตสำเร็จแล้ว 🎉' : 'กำลังท้าทาย'}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: AppColors.textMuted,
-                      ),
+                  Text(
+                    '${_campaignPageIndex + 1}/$pageCount',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
                     ),
                   ),
                 ],
               ),
-              // Progress badge
+            ),
+          SizedBox(
+            height: 188,
+            child: PageView.builder(
+              controller: _campaignPageController,
+              itemCount: pageCount,
+              onPageChanged: (index) {
+                if (mounted) {
+                  setState(() => _campaignPageIndex = index);
+                }
+              },
+              itemBuilder: (context, index) {
+                final campaign = sortedCampaigns[index];
+                final progressAsync = campaign.id == null
+                    ? const AsyncValue<int>.data(0)
+                    : ref.watch(campaignCheckinCountProvider(campaign.id!));
+                return _buildCampaignMapCard(
+                  campaign: campaign,
+                  progressAsync: progressAsync,
+                );
+              },
+            ),
+          ),
+          if (pageCount > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(pageCount, (index) {
+                  final isActive = index == _campaignPageIndex;
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: isActive ? 10 : 7,
+                    height: 7,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppColors.primaryDark
+                          : AppColors.primary.withAlpha(120),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  );
+                }),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCampaignMapCard({
+    required QuestModel campaign,
+    required AsyncValue<int> progressAsync,
+  }) {
+    final completed = progressAsync.valueOrNull ?? 0;
+    final total = campaign.habitTargetDays ?? 5;
+    final boundedProgress = completed.clamp(0, total);
+    final page = boundedProgress >= total
+        ? (total - 1) ~/ 5
+        : boundedProgress ~/ 5;
+    final pageStart = page * 5;
+    final pageStages = total - pageStart < 5 ? total - pageStart : 5;
+    final currentStage = (boundedProgress - pageStart + 1).clamp(1, pageStages);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.explore_rounded,
+                size: 17,
+                color: AppColors.primaryDark,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  campaign.title,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.prompt(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: completed >= 5
-                      ? const Color(0xFFFEF3C7)
-                      : AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(10),
+                  color: const Color(0xFFE8FAF4),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: completed >= 5
-                        ? const Color(0xFFF59E0B)
-                        : AppColors.primary,
-                    width: 1,
+                    color: const Color(0xFF44C792),
+                    width: 1.5,
                   ),
                 ),
                 child: Text(
-                  completed >= 5 ? 'พิชิตสำเร็จ! 👑' : 'สำเร็จ $completed/5',
-                  style: TextStyle(
-                    fontSize: 10,
+                  '$boundedProgress/$total วัน',
+                  style: const TextStyle(
+                    fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    color: completed >= 5
-                        ? const Color(0xFFB45309)
-                        : AppColors.primaryDark,
+                    color: Color(0xFF0F9F6E),
                   ),
                 ),
               ),
             ],
           ),
-
-          const SizedBox(height: 12),
-
-          // Interactive Checkpoint Nodes Path
-          dailyQuestsAsync.when(
-            loading: () => const SizedBox(
-              height: 160,
-              child: Center(child: CircularProgressIndicator()),
+          const SizedBox(height: 6),
+          Text(
+            'บทที่ ${page + 1} • ด่าน $currentStage/$pageStages',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textMuted,
             ),
-            error: (e, st) => SizedBox(
-              height: 160,
-              child: Center(child: Text('ข้อผิดพลาด: $e')),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: progressAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, st) => Center(child: Text('ข้อผิดพลาด: $e')),
+              data: (progress) => QuestProgressPath(
+                currentProgress: progress,
+                totalStages: total,
+                height: 120,
+              ),
             ),
-            data: (quests) => QuestProgressPath(quests: quests),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCampaignInviteCard({QuestModel? failedCampaign}) {
+    final isFailed = failedCampaign != null;
+    return InkWell(
+      onTap: () => showAddQuestTypeSheet(context),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isFailed ? AppColors.error : AppColors.border,
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadow,
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isFailed ? Icons.heart_broken_rounded : Icons.explore_rounded,
+              color: isFailed ? AppColors.error : AppColors.primaryDark,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isFailed ? 'แคมเปญแตกแล้ว' : 'ท้าทายตัวเอง!',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    isFailed
+                        ? 'เริ่มนับหนึ่งใหม่ สร้างแคมเปญอีกครั้ง'
+                        : 'สร้างเควสต์ต่อเนื่อง 7 วันขึ้นไป เพื่อปลดล็อกเส้นทางผจญภัยและกล่องสมบัติ',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.textMuted),
+          ],
+        ),
       ),
     );
   }
@@ -1267,9 +1474,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             children: [
               _buildFilterTab('ทั้งหมด', 0, dailyQuestsAsync),
               const SizedBox(width: 8),
-              _buildFilterTab('ค้างอยู่', 1, null),
+              _buildFilterTab('เควสทันใจ', 1, dailyQuestsAsync),
               const SizedBox(width: 8),
-              _buildFilterTab('เสร็จแล้ว', 2, null),
+              _buildFilterTab('เควสโฟกัส', 2, dailyQuestsAsync),
             ],
           ),
         ),
@@ -1298,9 +1505,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _dailyFilterIndex == 2
-                            ? 'ยังไม่มีเควสที่เสร็จวันนี้'
-                            : 'ไม่มีเควสที่เปิดอยู่ — กดปุ่ม "+" ด้านล่างเพื่อเพิ่มเควส',
+                        _dailyFilterIndex == 1
+                            ? 'ไม่มีเควสทันใจที่ตรงกับวันที่ปัจจุบัน'
+                            : _dailyFilterIndex == 2
+                            ? 'ไม่มีเควสโฟกัสที่ตรงกับวันที่ปัจจุบัน'
+                            : 'ไม่มีเควสที่เปิดอยู่สำหรับวันนี้ — กดปุ่ม "+" ด้านล่างเพื่อเพิ่มเควส',
                         style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.textMuted,
@@ -1366,11 +1575,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           .read(questActionsProvider.notifier)
           .checkInHabit(quest.id!);
       if (!mounted) return;
+      final bossRewardMessage = result.isFinalBoss
+          ? ' 👑 บอสใหญ่! โบนัส +${result.bossBonusExp} EXP, +${result.bossBonusGold} Gold, +${result.bossBonusGems} 💎'
+          : result.isMiniBoss
+          ? ' 👾 มินิบอส! โบนัส +${result.bossBonusExp} EXP, +${result.bossBonusGold} Gold, +${result.bossBonusGems} 💎'
+          : '';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'เช็กอินสำเร็จ วันที่ ${result.day}! ได้รับ '
             '+${result.exp} EXP, +${result.gold} Gold (❤️ ฟื้นฟู HP)'
+            '$bossRewardMessage'
             '${result.completed ? ' เควสต์ Habit สำเร็จครบเป้าหมายแล้ว!' : ''}',
           ),
           backgroundColor: AppColors.primaryDark,
@@ -1392,9 +1607,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   List<QuestModel> _filterQuests(List<QuestModel> quests) {
     switch (_dailyFilterIndex) {
       case 1:
-        return quests.where((q) => !q.isCompleted).toList();
+        return quests
+            .where((q) => q.goalType == QuestGoalType.dailyHabit)
+            .toList();
       case 2:
-        return quests.where((q) => q.isCompleted).toList();
+        return quests.where((q) => q.goalType == QuestGoalType.focus).toList();
       default:
         return quests;
     }
@@ -1410,7 +1627,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     if (questsAsync != null) {
       final quests = questsAsync.valueOrNull;
       if (quests != null) {
-        countText = '(${quests.length})';
+        if (index == 1) {
+          countText =
+              '(${quests.where((q) => q.goalType == QuestGoalType.dailyHabit).length})';
+        } else if (index == 2) {
+          countText =
+              '(${quests.where((q) => q.goalType == QuestGoalType.focus).length})';
+        } else {
+          countText = '(${quests.length})';
+        }
       }
     }
 
@@ -1496,10 +1721,15 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text(
             'ยอมรับความพ่ายแพ้?',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFDC2626)),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFDC2626),
+            ),
           ),
           content: const Text(
             'คุณแน่ใจหรือไม่ที่จะละทิ้งแคมเปญนี้? หากยกเลิก ความคืบหน้าบนแผนที่ทั้งหมดจะหายไป และฮีโร่จะสูญเสีย 20 HP จากการหลบหนี 🏳️',
@@ -1508,7 +1738,13 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('ฮึดสู้ต่อ! (กลับไปทำเควสต์)', style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'ฮึดสู้ต่อ! (กลับไปทำเควสต์)',
+                style: TextStyle(
+                  color: AppColors.primaryDark,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
@@ -1524,20 +1760,30 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
 
       if (confirm == true) {
         await ref.read(userProvider.notifier).applyHpDamage(20);
-        await ref.read(questActionsProvider.notifier).deleteQuest(widget.quest.id!);
+        await ref
+            .read(questActionsProvider.notifier)
+            .deleteQuest(widget.quest.id!);
         if (mounted) Navigator.of(context).pop();
       }
     } else {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('ลบภารกิจ', style: TextStyle(fontWeight: FontWeight.bold)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text(
+            'ลบภารกิจ',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           content: const Text('ต้องการลบเควสต์นี้ใช่หรือไม่?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('ยกเลิก', style: TextStyle(color: AppColors.textMuted)),
+              child: const Text(
+                'ยกเลิก',
+                style: TextStyle(color: AppColors.textMuted),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.of(ctx).pop(true),
@@ -1552,7 +1798,9 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
       );
 
       if (confirm == true) {
-        await ref.read(questActionsProvider.notifier).deleteQuest(widget.quest.id!);
+        await ref
+            .read(questActionsProvider.notifier)
+            .deleteQuest(widget.quest.id!);
         if (mounted) Navigator.of(context).pop();
       }
     }
@@ -1565,7 +1813,9 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
     final isFocus = q.goalType == QuestGoalType.focus;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         decoration: const BoxDecoration(
           color: AppColors.background,
@@ -1593,12 +1843,18 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: isFocus ? const Color(0xFFFEF3C7) : AppColors.primaryLight,
+                          color: isFocus
+                              ? const Color(0xFFFEF3C7)
+                              : AppColors.primaryLight,
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          isFocus ? Icons.hourglass_bottom_rounded : Icons.bolt_rounded,
-                          color: isFocus ? const Color(0xFFD97706) : AppColors.primaryDark,
+                          isFocus
+                              ? Icons.hourglass_bottom_rounded
+                              : Icons.bolt_rounded,
+                          color: isFocus
+                              ? const Color(0xFFD97706)
+                              : AppColors.primaryDark,
                           size: 24,
                         ),
                       ),
@@ -1608,18 +1864,33 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
-                                color: isCampaign ? const Color(0xFFFEF3C7) : AppColors.surface,
+                                color: isCampaign
+                                    ? const Color(0xFFFEF3C7)
+                                    : AppColors.surface,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: isCampaign ? const Color(0xFFF59E0B) : AppColors.borderLight),
+                                border: Border.all(
+                                  color: isCampaign
+                                      ? const Color(0xFFF59E0B)
+                                      : AppColors.borderLight,
+                                ),
                               ),
                               child: Text(
-                                isCampaign ? '👑 แคมเปญ' : (isFocus ? '⏳ เควสต์โฟกัส' : '⚡ เควสต์ทันใจ'),
+                                isCampaign
+                                    ? '👑 แคมเปญ'
+                                    : (isFocus
+                                          ? '⏳ เควสต์โฟกัส'
+                                          : '⚡ เควสต์ทันใจ'),
                                 style: TextStyle(
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
-                                  color: isCampaign ? const Color(0xFFB45309) : AppColors.textSecondary,
+                                  color: isCampaign
+                                      ? const Color(0xFFB45309)
+                                      : AppColors.textSecondary,
                                 ),
                               ),
                             ),
@@ -1638,7 +1909,7 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                     ],
                   ),
                   const SizedBox(height: 24),
-                  
+
                   const Text(
                     'ข้อมูลภารกิจ',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
@@ -1656,14 +1927,20 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                         if (isCampaign) ...[
                           Row(
                             children: [
-                              const Icon(Icons.map_rounded, size: 20, color: AppColors.primary),
+                              const Icon(
+                                Icons.map_rounded,
+                                size: 20,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: _checkinCount == null
                                     ? const Text('กำลังโหลดความคืบหน้า...')
                                     : Text(
                                         'เดินทางมาแล้ว $_checkinCount/${q.habitTargetDays} วัน',
-                                        style: const TextStyle(fontWeight: FontWeight.w600),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                               ),
                             ],
@@ -1672,12 +1949,19 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                             const SizedBox(height: 8),
                             Row(
                               children: [
-                                const Icon(Icons.pest_control_rounded, size: 20, color: Color(0xFFEA580C)),
+                                const Icon(
+                                  Icons.pest_control_rounded,
+                                  size: 20,
+                                  color: Color(0xFFEA580C),
+                                ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
                                     'มินิบอสครั้งถัดไปในอีก ${5 - ((_checkinCount! + 1) % 5)} วัน',
-                                    style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFFEA580C)),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFFEA580C),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1686,11 +1970,19 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                         ] else ...[
                           Row(
                             children: [
-                              const Icon(Icons.repeat_rounded, size: 20, color: AppColors.primary),
+                              const Icon(
+                                Icons.repeat_rounded,
+                                size: 20,
+                                color: AppColors.primary,
+                              ),
                               const SizedBox(width: 12),
                               Text(
-                                q.habitFrequency == HabitFrequency.daily ? 'ทำทุกวัน' : 'กำหนดเอง',
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                q.habitFrequency == HabitFrequency.daily
+                                    ? 'ทำทุกวัน'
+                                    : 'กำหนดเอง',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
@@ -1700,11 +1992,17 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            const Icon(Icons.star_rounded, size: 20, color: AppColors.gold),
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 20,
+                              color: AppColors.gold,
+                            ),
                             const SizedBox(width: 12),
                             Text(
                               'รางวัลพื้นฐาน: +${q.expReward} EXP, +${q.goldReward} Gold',
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -1719,22 +2017,37 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                         child: OutlinedButton.icon(
                           onPressed: () {
                             Navigator.of(context).pop();
-                            if (widget.quest.goalType == QuestGoalType.dailyHabit) {
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (context) => AddQuickQuestScreen(questToEdit: widget.quest),
-                              ));
-                            } else if (widget.quest.goalType == QuestGoalType.focus) {
-                              Navigator.of(context).push(MaterialPageRoute(
-                                builder: (context) => AddFocusQuestScreen(questToEdit: widget.quest),
-                              ));
+                            if (widget.quest.goalType ==
+                                QuestGoalType.dailyHabit) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => AddQuickQuestScreen(
+                                    questToEdit: widget.quest,
+                                  ),
+                                ),
+                              );
+                            } else if (widget.quest.goalType ==
+                                QuestGoalType.focus) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => AddFocusQuestScreen(
+                                    questToEdit: widget.quest,
+                                  ),
+                                ),
+                              );
                             }
                           },
                           icon: const Icon(Icons.edit_rounded, size: 18),
                           label: const Text('แก้ไขภารกิจ'),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: const BorderSide(color: AppColors.border, width: 2),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            side: const BorderSide(
+                              color: AppColors.border,
+                              width: 2,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             foregroundColor: AppColors.textPrimary,
                           ),
                         ),
@@ -1750,7 +2063,9 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                             backgroundColor: const Color(0xFFDC2626),
                             foregroundColor: Colors.white,
                             elevation: 0,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                           ),
                         ),
                       ),

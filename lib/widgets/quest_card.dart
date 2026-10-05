@@ -322,7 +322,7 @@ class _QuestCardState extends State<QuestCard>
                         if (widget.quest.estimatedMinutes > 0 &&
                             widget.onStartFocus != null) ...[
                           _SmallButton(
-                            label: _isMindfulnessQuest ? 'ฝึก' : 'เริ่ม',
+                          label: _isMindfulnessQuest ? 'ฝึก' : 'โฟกัส',
                             icon: _isMindfulnessQuest
                                 ? Icons.self_improvement_rounded
                                 : Icons.play_arrow_rounded,
@@ -337,7 +337,7 @@ class _QuestCardState extends State<QuestCard>
                         // Habit) ที่เช็กอินได้จากหน้าหลักเท่านั้น
                         if (widget.onComplete != null)
                           _SmallButton(
-                            label: 'เสร็จ',
+                            label: 'แตะเช็กอิน',
                             icon: Icons.check_circle_outline_rounded,
                             color: AppColors.primaryDark,
                             onTap: _handleComplete,

@@ -31,46 +31,100 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     return _evaluateFrozenStreak(user);
   }
 
-  Future<UserModel> _evaluateFrozenStreak(UserModel user, {DateTime? now}) async {
-    if (user.lastActiveDate == null) return user;
+  Future<UserModel> _evaluateFrozenStreak(
+    UserModel user, {
+    DateTime? now,
+  }) async {
     final current = now ?? DateTime.now();
-    final last = DateTime.parse(user.lastActiveDate!);
-    final lastDay = DateTime(last.year, last.month, last.day);
-    final today = DateTime(current.year, current.month, current.day);
-    final missedDays = today.difference(lastDay).inDays - 1;
-    if (user.streakFrozenUntil != null &&
-        current.isBefore(DateTime.parse(user.streakFrozenUntil!))) {
-      return user;
-    }
-    if (missedDays <= user.missedDaysCount) return user;
+    final db = ref.read(databaseHelperProvider);
+    var next = user;
 
-    var next = user.copyWith(
-      missedDaysCount: missedDays,
-      isStreakFrozen: missedDays == 1,
-      streakBeforeReset: missedDays >= 2
-          ? user.streakBeforeReset > 0
-                ? user.streakBeforeReset
-                : user.streakCount
-          : user.streakBeforeReset,
-      streakCount: missedDays >= 2 ? 0 : user.streakCount,
-      hasStreakDebuff: missedDays >= 2,
-      streakResetAt: missedDays >= 2
-          ? current.toIso8601String()
-          : user.streakResetAt,
-    );
-    // บทลงโทษไฟดับ: HP ลดลงตามวันที่ขาดไป
-    if (missedDays >= 1) {
-      next = next.applyHpDamage(missedDays * 20);
+    if (user.lastActiveDate != null) {
+      final last = DateTime.parse(user.lastActiveDate!);
+      final lastDay = DateTime(last.year, last.month, last.day);
+      final today = DateTime(current.year, current.month, current.day);
+      final missedDays = today.difference(lastDay).inDays - 1;
+      final streakFrozen =
+          user.streakFrozenUntil != null &&
+          current.isBefore(DateTime.parse(user.streakFrozenUntil!));
+
+      if (!streakFrozen && missedDays > user.missedDaysCount) {
+        next = user.copyWith(
+          missedDaysCount: missedDays,
+          isStreakFrozen: missedDays == 1,
+          streakBeforeReset: missedDays >= 2
+              ? user.streakBeforeReset > 0
+                    ? user.streakBeforeReset
+                    : user.streakCount
+              : user.streakBeforeReset,
+          streakCount: missedDays >= 2 ? 0 : user.streakCount,
+          hasStreakDebuff: missedDays >= 2,
+          streakResetAt: missedDays >= 2
+              ? current.toIso8601String()
+              : user.streakResetAt,
+        );
+        await db.updateUser(next);
+      }
     }
-    await ref.read(databaseHelperProvider).updateUser(next);
-    
-    if (next.currentHp <= 0) {
-      await ref.read(databaseHelperProvider).failActiveCampaigns();
+
+    final activeCampaigns = (await db.getQuests(
+      isCompleted: false,
+    )).where((quest) => quest.isCampaign && quest.id != null).toList();
+    final today = DateTime(current.year, current.month, current.day);
+    final throughDay = today.subtract(const Duration(days: 1));
+    final missedDateKeys = <String>{};
+
+    for (final campaign in activeCampaigns) {
+      final checkinDates = await db.getHabitCheckinDates(campaign.id!);
+      final lastEvaluated = campaign.lastCampaignPenaltyDate == null
+          ? null
+          : DateTime.tryParse(campaign.lastCampaignPenaltyDate!);
+      var day = lastEvaluated == null
+          ? DateTime.parse(campaign.createdAt)
+          : lastEvaluated.add(const Duration(days: 1));
+      day = DateTime(day.year, day.month, day.day);
+      final weekdays = campaign.effectiveHabitWeekdays;
+
+      while (!day.isAfter(throughDay)) {
+        final dateKey = _campaignDateKey(day);
+        final isScheduled = weekdays.isEmpty || weekdays.contains(day.weekday);
+        if (isScheduled && !checkinDates.contains(dateKey)) {
+          missedDateKeys.add(dateKey);
+        }
+        day = day.add(const Duration(days: 1));
+      }
+
+      if (lastEvaluated == null ||
+          DateTime(
+            lastEvaluated.year,
+            lastEvaluated.month,
+            lastEvaluated.day,
+          ).isBefore(throughDay)) {
+        await db.updateQuest(
+          campaign.copyWith(
+            lastCampaignPenaltyDate: _campaignDateKey(throughDay),
+          ),
+        );
+      }
+    }
+
+    if (missedDateKeys.isNotEmpty) {
+      next = next.applyCampaignHpDamage(missedDateKeys.length * 20);
+      await db.updateUser(next);
+    }
+
+    if (next.currentHp <= 0 && activeCampaigns.isNotEmpty) {
+      await db.failActiveCampaigns();
       ref.invalidate(questListProvider);
     }
 
     return next;
   }
+
+  String _campaignDateKey(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   Future<void> evaluateFrozenStreak({DateTime? now}) async {
     final user = state.valueOrNull;
@@ -100,7 +154,11 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     );
   }
 
-  Future<void> addExpAndGold({required int exp, required int gold, int hpGain = 0}) async {
+  Future<void> addExpAndGold({
+    required int exp,
+    required int gold,
+    int hpGain = 0,
+  }) async {
     final current = state.valueOrNull;
     if (current == null) return;
 
@@ -131,7 +189,7 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     if (current == null) return;
     final updated = current.applyHpDamage(damage);
     await ref.read(databaseHelperProvider).updateUser(updated);
-    
+
     // หาก HP เหลือ 0 ให้ลบ/ปิดแคมเปญทั้งหมด (Game Over สำหรับแคมเปญ)
     if (updated.currentHp <= 0) {
       await ref.read(databaseHelperProvider).failActiveCampaigns();
@@ -188,8 +246,8 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     final nextStreak = current.isStreakFrozen
         ? current.streakCount + 1
         : isConsecutive
-            ? current.streakCount + 1
-            : 1;
+        ? current.streakCount + 1
+        : 1;
 
     // Milestone bonus gems for streaks (7 days: +5 gems, 30 days: +20 gems)
     var milestoneGems = 0;
@@ -217,7 +275,9 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
     if (current == null ||
         current.streakBeforeReset <= 0 ||
         current.streakResetAt == null ||
-        DateTime.now().difference(DateTime.parse(current.streakResetAt!)).inHours >
+        DateTime.now()
+                .difference(DateTime.parse(current.streakResetAt!))
+                .inHours >
             48) {
       return false;
     }

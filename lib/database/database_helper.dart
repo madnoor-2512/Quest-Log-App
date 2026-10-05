@@ -17,7 +17,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 13;
+  static const int dbVersion = 14;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -221,6 +221,18 @@ class DatabaseHelper {
         'INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 14) {
+      await _addColumnIfMissing(
+        db,
+        tableQuests,
+        'last_campaign_penalty_date',
+        'TEXT',
+      );
+      await db.execute(
+        "UPDATE $tableQuests SET last_campaign_penalty_date = date('now', 'localtime', '-1 day') "
+        'WHERE habit_target_days IS NOT NULL AND habit_target_days > 0 AND is_completed = 0',
+      );
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -285,7 +297,9 @@ class DatabaseHelper {
         exp_reward INTEGER NOT NULL,
         gold_reward INTEGER NOT NULL,
         due_date TEXT,
+        last_campaign_penalty_date TEXT,
         is_completed INTEGER NOT NULL DEFAULT 0,
+        is_campaign_failed INTEGER NOT NULL DEFAULT 0,
         completed_at TEXT,
         created_at TEXT NOT NULL,
         awarded_exp INTEGER,
@@ -467,6 +481,82 @@ class DatabaseHelper {
       [questId],
     );
     return (result.first['count'] as int?) ?? 0;
+  }
+
+  Future<Set<String>> getHabitCheckinDates(int questId) async {
+    final db = await database;
+    final rows = await db.query(
+      tableHabitCheckins,
+      columns: ['checkin_date'],
+      where: 'quest_id = ?',
+      whereArgs: [questId],
+    );
+    return rows.map((row) => row['checkin_date'] as String).toSet();
+  }
+
+  Future<List<({QuestModel quest, DateTime checkedInAt})>> getHabitCheckins({
+    DateTime? from,
+    DateTime? to,
+    int? limit,
+    bool newestFirst = false,
+  }) async {
+    final db = await database;
+    final conditions = <String>[];
+    final whereArgs = <Object?>[];
+    if (from != null) {
+      conditions.add('checkins.checked_in_at >= ?');
+      whereArgs.add(from.toIso8601String());
+    }
+    if (to != null) {
+      conditions.add('checkins.checked_in_at <= ?');
+      whereArgs.add(to.toIso8601String());
+    }
+    if (limit != null) whereArgs.add(limit);
+
+    final rows = await db.rawQuery('''
+      SELECT quests.*, checkins.checked_in_at AS checkin_timestamp
+      FROM $tableHabitCheckins AS checkins
+      INNER JOIN $tableQuests AS quests ON quests.id = checkins.quest_id
+      ${conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}'}
+      ORDER BY checkins.checked_in_at ${newestFirst ? 'DESC' : 'ASC'}
+      ${limit == null ? '' : 'LIMIT ?'}
+      ''', whereArgs);
+    return rows
+        .map(
+          (row) => (
+            quest: QuestModel.fromMap(row),
+            checkedInAt: DateTime.parse(row['checkin_timestamp'] as String),
+          ),
+        )
+        .toList();
+  }
+
+  Future<({Set<int> questIds, int focusMinutes})>
+  getHabitCheckinSummary() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT quests.id AS quest_id,
+             quests.goal_type AS goal_type,
+             quests.estimated_minutes AS estimated_minutes,
+             quests.is_campaign_failed AS is_campaign_failed,
+             COUNT(checkins.id) AS checkin_count
+      FROM $tableHabitCheckins AS checkins
+      INNER JOIN $tableQuests AS quests ON quests.id = checkins.quest_id
+      GROUP BY quests.id
+      ''');
+
+    final questIds = <int>{};
+    var focusMinutes = 0;
+    for (final row in rows) {
+      if ((row['is_campaign_failed'] as int? ?? 0) == 1) continue;
+      questIds.add(row['quest_id'] as int);
+      if (row['goal_type'] == 'FOCUS') {
+        final minutes = row['estimated_minutes'] as int? ?? 0;
+        final checkinCount = row['checkin_count'] as int? ?? 0;
+        focusMinutes += minutes * checkinCount;
+      }
+    }
+    return (questIds: questIds, focusMinutes: focusMinutes);
   }
 
   Future<bool> hasHabitCheckinToday(int questId, {DateTime? now}) async {
@@ -825,11 +915,13 @@ class DatabaseHelper {
 
   Future<void> ensureDefaultRewards() async {
     final existing = await getAllRewards();
-    final existingTitles = existing.map((reward) => reward.title).toSet();
+    final existingByTitle = {
+      for (final reward in existing) reward.title: reward,
+    };
     const defaults = [
       RewardModel(
         title: 'หูฟัง Lo-Fi',
-        goldCost: 200,
+        goldCost: 80,
         description: 'เพิ่มเวลา Focus 10% เมื่อสวมใส่',
         iconName: 'headphones',
         itemCategory: RewardCategory.equipment,
@@ -839,7 +931,7 @@ class DatabaseHelper {
       ),
       RewardModel(
         title: 'ตราปลดล็อก Multitask',
-        goldCost: 350,
+        goldCost: 260,
         description: 'ปลดล็อกช่อง Concurrent Quest ที่ 3 เมื่อสวมใส่',
         iconName: 'layers',
         itemCategory: RewardCategory.equipment,
@@ -849,7 +941,7 @@ class DatabaseHelper {
       ),
       RewardModel(
         title: 'คัมภีร์ยืดเวลา',
-        goldCost: 60,
+        goldCost: 18,
         description: 'เพิ่มเวลา Focus 15 นาที ใช้ได้ระหว่าง session',
         iconName: 'auto_stories',
         itemCategory: RewardCategory.consumable,
@@ -859,7 +951,7 @@ class DatabaseHelper {
       ),
       RewardModel(
         title: 'ขวดพลังประสบการณ์',
-        goldCost: 120,
+        goldCost: 18,
         description: 'ได้รับ EXP ทันที 50 แต้ม',
         iconName: 'science',
         itemCategory: RewardCategory.consumable,
@@ -869,7 +961,7 @@ class DatabaseHelper {
       ),
       RewardModel(
         title: 'ถุงทองกล้าหาญ',
-        goldCost: 180,
+        goldCost: 15,
         description: 'ได้รับ Gold ทันที 100 เหรียญ',
         iconName: 'savings',
         itemCategory: RewardCategory.consumable,
@@ -879,7 +971,7 @@ class DatabaseHelper {
       ),
       RewardModel(
         title: 'เหรียญนักตื่นเช้า',
-        goldCost: 500,
+        goldCost: 300,
         description: 'ของสะสมสำหรับผู้พิชิต Habit ต่อเนื่อง',
         iconName: 'wb_sunny',
         itemCategory: RewardCategory.collectible,
@@ -887,7 +979,7 @@ class DatabaseHelper {
       ),
       RewardModel(
         title: 'ตรา Multitasking Adventurer',
-        goldCost: 650,
+        goldCost: 420,
         description: 'ของสะสมสำหรับผู้ทำ Concurrent Quest สำเร็จ',
         iconName: 'military_tech',
         itemCategory: RewardCategory.collectible,
@@ -926,8 +1018,22 @@ class DatabaseHelper {
     ];
 
     for (final reward in defaults) {
-      if (!existingTitles.contains(reward.title)) {
+      final existingReward = existingByTitle[reward.title];
+      if (existingReward == null) {
         await insertReward(reward);
+        continue;
+      }
+
+      final needsRefresh = existingReward.goldCost != reward.goldCost ||
+          existingReward.description != reward.description ||
+          existingReward.iconName != reward.iconName ||
+          existingReward.itemCategory != reward.itemCategory ||
+          existingReward.rarity != reward.rarity ||
+          existingReward.effectType != reward.effectType ||
+          existingReward.effectValue != reward.effectValue;
+
+      if (needsRefresh) {
+        await updateReward(reward.copyWith(id: existingReward.id));
       }
     }
   }
@@ -1321,6 +1427,17 @@ class DatabaseHelper {
       [from.toIso8601String(), to.toIso8601String()],
     );
     return maps.map((m) => QuestModel.fromMap(m)).toList();
+  }
+
+  Future<List<QuestModel>> getRecentCompletedQuests({int limit = 15}) async {
+    final db = await database;
+    final maps = await db.query(
+      tableQuests,
+      where: 'is_completed = 1 AND completed_at IS NOT NULL',
+      orderBy: 'completed_at DESC',
+      limit: limit,
+    );
+    return maps.map((map) => QuestModel.fromMap(map)).toList();
   }
 
   /// ดึงเควสต์ที่ทำสำเร็จวันนี้ (ใช้สำหรับหน้า Stats แสดงรายการเสร็จแล้ว)

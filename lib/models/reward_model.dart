@@ -95,41 +95,36 @@ extension RewardCategoryX on RewardCategory {
 }
 
 /// ระดับความหายาก — แค่ใช้แสดงผล (badge สี) ไม่มีผลต่อกลไกเกม
-enum ItemRarity { common, rare, epic }
+enum ItemRarity { common, rare, epic, legendary }
 
 extension ItemRarityX on ItemRarity {
-  String get dbValue {
-    switch (this) {
-      case ItemRarity.common:
-        return 'COMMON';
-      case ItemRarity.rare:
-        return 'RARE';
-      case ItemRarity.epic:
-        return 'EPIC';
-    }
-  }
+  String get dbValue => switch (this) {
+    ItemRarity.common => 'COMMON',
+    ItemRarity.rare => 'RARE',
+    ItemRarity.epic => 'EPIC',
+    ItemRarity.legendary => 'LEGENDARY',
+  };
 
-  String get displayName {
-    switch (this) {
-      case ItemRarity.common:
-        return 'Common';
-      case ItemRarity.rare:
-        return 'Rare';
-      case ItemRarity.epic:
-        return 'Epic';
-    }
-  }
+  String get displayName => switch (this) {
+    ItemRarity.common => 'Common',
+    ItemRarity.rare => 'Rare',
+    ItemRarity.epic => 'Epic',
+    ItemRarity.legendary => 'Legendary',
+  };
 
-  static ItemRarity fromDb(String value) {
-    switch (value.toUpperCase()) {
-      case 'RARE':
-        return ItemRarity.rare;
-      case 'EPIC':
-        return ItemRarity.epic;
-      default:
-        return ItemRarity.common;
-    }
-  }
+  String get thaiDisplayName => switch (this) {
+    ItemRarity.common => 'ทั่วไป',
+    ItemRarity.rare => 'หายาก',
+    ItemRarity.epic => 'อีปิค',
+    ItemRarity.legendary => 'ตำนาน',
+  };
+
+  static ItemRarity fromDb(String value) => switch (value.toUpperCase()) {
+    'RARE' => ItemRarity.rare,
+    'EPIC' => ItemRarity.epic,
+    'LEGENDARY' => ItemRarity.legendary,
+    _ => ItemRarity.common,
+  };
 }
 
 /// ผลจริงที่ไอเทมมีต่อเกม — จำกัดเฉพาะกลไกที่มีอยู่แล้วในแอป (ไม่มีระบบ

@@ -14,6 +14,7 @@ class QuestModel {
   final int goldReward;
   final int? awardedExp;
   final int? awardedGold;
+  final String? lastCampaignPenaltyDate; // YYYY-MM-DD
   final String? dueDate; // ISO8601
   final bool isCompleted;
   final bool isCampaignFailed; // true = แคมเปญแตก (HP=0), false = ปกติ
@@ -39,6 +40,7 @@ class QuestModel {
     required this.goldReward,
     this.awardedExp,
     this.awardedGold,
+    this.lastCampaignPenaltyDate,
     this.dueDate,
     this.isCompleted = false,
     this.isCampaignFailed = false,
@@ -61,7 +63,7 @@ class QuestModel {
       habitFrequency == HabitFrequency.custom
       ? (habitCustomWeekdays ?? const [])
       : habitFrequency.fixedWeekdays;
-      
+
   bool get isCampaign => habitTargetDays != null && habitTargetDays! > 0;
 
   QuestModel copyWith({
@@ -79,6 +81,8 @@ class QuestModel {
     int? awardedExp,
     int? awardedGold,
     String? dueDate,
+    String? lastCampaignPenaltyDate,
+    bool clearDueDate = false,
     bool? isCompleted,
     String? completedAt,
     String? createdAt,
@@ -103,7 +107,9 @@ class QuestModel {
       goldReward: goldReward ?? this.goldReward,
       awardedExp: awardedExp ?? this.awardedExp,
       awardedGold: awardedGold ?? this.awardedGold,
-      dueDate: dueDate ?? this.dueDate,
+      dueDate: clearDueDate ? null : dueDate ?? this.dueDate,
+      lastCampaignPenaltyDate:
+          lastCampaignPenaltyDate ?? this.lastCampaignPenaltyDate,
       isCompleted: isCompleted ?? this.isCompleted,
       completedAt: completedAt ?? this.completedAt,
       createdAt: createdAt ?? this.createdAt,
@@ -132,6 +138,7 @@ class QuestModel {
       if (awardedExp != null) 'awarded_exp': awardedExp,
       if (awardedGold != null) 'awarded_gold': awardedGold,
       'due_date': dueDate,
+      'last_campaign_penalty_date': lastCampaignPenaltyDate,
       'is_completed': isCompleted ? 1 : 0,
       'completed_at': completedAt,
       'created_at': createdAt,
@@ -160,6 +167,7 @@ class QuestModel {
       awardedExp: map['awarded_exp'] as int?,
       awardedGold: map['awarded_gold'] as int?,
       dueDate: map['due_date'] as String?,
+      lastCampaignPenaltyDate: map['last_campaign_penalty_date'] as String?,
       isCompleted: (map['is_completed'] as int? ?? 0) == 1,
       completedAt: map['completed_at'] as String?,
       createdAt: map['created_at'] as String,

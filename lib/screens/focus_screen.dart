@@ -30,8 +30,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
   int? _trackedSessionId;
   int _totalSeconds = 0;
   int _secondsRemaining = 0;
-  final ValueNotifier<double> _smoothProgressNotifier =
-      ValueNotifier<double>(0.0);
+  final ValueNotifier<double> _smoothProgressNotifier = ValueNotifier<double>(
+    0.0,
+  );
   bool _autoCompletingSession = false;
   bool _completingDueQuests = false;
 
@@ -73,7 +74,11 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       final remaining = (_totalSeconds - elapsed).clamp(0, _totalSeconds);
       if (mounted) setState(() => _secondsRemaining = remaining);
       if (!_autoCompletingSession && !_completingDueQuests) {
-        unawaited(_completeDueQuests(session, elapsed));
+        if (remaining == 0) {
+          unawaited(_completeSessionWhenTimeUp(session));
+        } else {
+          unawaited(_completeDueQuests(session, elapsed));
+        }
       }
     }
 
@@ -152,8 +157,23 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
       final isConcurrent = quests.length > 1;
       var totalExp = 0;
       var totalGold = 0;
+      final bossClears = <String>[];
 
       for (final quest in pendingQuests) {
+        if (quest.isCampaign) {
+          final result = await ref
+              .read(questActionsProvider.notifier)
+              .checkInHabit(quest.id!, fromFocusTimer: true);
+          totalExp += result.exp;
+          totalGold += result.gold;
+          if (result.isFinalBoss || result.isMiniBoss) {
+            bossClears.add(
+              '${result.isFinalBoss ? 'บอสใหญ่' : 'มินิบอส'}: '
+              '+${result.bossBonusExp} EXP, +${result.bossBonusGold} Gold, +${result.bossBonusGems} 💎',
+            );
+          }
+          continue;
+        }
         final result = await ref
             .read(questActionsProvider.notifier)
             .completeQuest(
@@ -185,6 +205,21 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
           duration: const Duration(seconds: 4),
         ),
       );
+      if (bossClears.isNotEmpty && mounted) {
+        await showDialog<void>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('เปิดหีบสมบัติ!'),
+            content: Text(bossClears.join('\n')),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('รับรางวัล'),
+              ),
+            ],
+          ),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -210,7 +245,9 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
         final duration = quest.estimatedMinutes > 0
             ? quest.estimatedMinutes * 60
             : session.targetDuration;
-        return !quest.isCompleted && elapsedSeconds >= duration;
+        return !quest.isCampaign &&
+            !quest.isCompleted &&
+            elapsedSeconds >= duration;
       }).toList();
       if (pendingQuests.isEmpty) return;
 
@@ -361,9 +398,12 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                 // เท่านั้น — "เควสต์ทันใจ" (Daily Habit) จบเควสต์ผ่านปุ่ม
                 // เช็กอินที่หน้าหลักเท่านั้น การส่งเข้ามาที่นี่แล้วพยายาม
                 // completeQuest() ตอนจบเซสชันจะ throw StateError เสมอ
-                final quests = allQuests
-                    .where((q) => q.goalType == QuestGoalType.focus)
-                    .toList();
+                final quests = allQuests.where((q) {
+                  if (q.goalType != QuestGoalType.focus) return false;
+                  final allowedWeekdays = q.effectiveHabitWeekdays;
+                  return allowedWeekdays.isEmpty ||
+                      allowedWeekdays.contains(DateTime.now().weekday);
+                }).toList();
                 if (quests.isEmpty) {
                   return const Center(
                     child: Text(
@@ -600,7 +640,7 @@ class _FocusScreenState extends ConsumerState<FocusScreen> {
                         const SizedBox(height: 6),
                         QuestCard(
                           quest: q,
-                          onComplete: q.isCompleted || !timeUp
+                          onComplete: q.isCompleted || !timeUp || q.isCampaign
                               ? null
                               : () => _completeSessionQuest(q),
                         ),

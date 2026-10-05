@@ -12,6 +12,8 @@ import '../widgets/rpg_button.dart';
 
 Color _rarityColor(ItemRarity rarity) {
   switch (rarity) {
+    case ItemRarity.legendary:
+      return const Color(0xFFFFD700);
     case ItemRarity.epic:
       return const Color(0xFF7C3AED);
     case ItemRarity.rare:
@@ -164,9 +166,16 @@ class _RewardsScreenState extends ConsumerState<RewardsScreen> {
 // Shop Tab
 // ---------------------------------------------------------------------------
 
-class _ShopTab extends ConsumerWidget {
+class _ShopTab extends ConsumerStatefulWidget {
   final UserModel? user;
   const _ShopTab({required this.user});
+
+  @override
+  ConsumerState<_ShopTab> createState() => _ShopTabState();
+}
+
+class _ShopTabState extends ConsumerState<_ShopTab> {
+  ItemRarity? _selectedRarity;
 
   IconData _categoryIcon(RewardCategory category) {
     switch (category) {
@@ -180,14 +189,16 @@ class _ShopTab extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final rewardsAsync = ref.watch(rewardsListProvider);
 
     return rewardsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, st) => Center(child: Text('ข้อผิดพลาด: $e')),
       data: (rewards) {
-        if (rewards.isEmpty) {
+        final shopRewards = rewards.where((reward) => !reward.isCustomReward).toList();
+
+        if (shopRewards.isEmpty) {
           return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -200,168 +211,270 @@ class _ShopTab extends ConsumerWidget {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.only(top: 12),
-          itemCount: rewards.length,
-          itemBuilder: (context, index) {
-            final r = rewards[index];
-            final canAfford = (user?.gems ?? 0) >= r.goldCost;
-            final rarityClr = _rarityColor(r.rarity);
+        final filteredRewards = _selectedRarity == null
+            ? shopRewards
+            : shopRewards.where((reward) => reward.rarity == _selectedRarity).toList();
 
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.cardSurface,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppColors.border, width: 1.5),
-              ),
-              child: Row(
-                children: [
-                  // Icon container — same style as inventory
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: rarityClr.withAlpha(35),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: rarityClr, width: 1.5),
+        return Column(
+          children: [
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 42,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _RarityFilterChip(
+                      label: 'ทั้งหมด',
+                      selected: _selectedRarity == null,
+                      onTap: () => setState(() => _selectedRarity = null),
                     ),
-                    child: Icon(_categoryIcon(r.itemCategory), color: rarityClr),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Title + rarity badge
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                r.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: rarityClr.withAlpha(35),
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: rarityClr, width: 1),
-                              ),
-                              child: Text(
-                                r.rarity.displayName,
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  color: rarityClr,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        // Category name
-                        Text(
-                          r.itemCategory.displayName,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textMuted,
-                          ),
-                        ),
-                        // Description
-                        if (r.description != null)
-                          Text(
-                            r.description!,
-                            style: const TextStyle(
-                              color: AppColors.textMuted,
-                              fontSize: 12,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        const SizedBox(height: 2),
-                        // Gem cost
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.diamond_rounded,
-                              size: 13,
-                              color: Color(0xFF0284C7),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${r.goldCost} เพชร',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF0284C7),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Buy button
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: canAfford
-                          ? AppColors.secondary
-                          : Colors.grey.shade400,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
+                    const SizedBox(width: 8),
+                    for (final rarity in ItemRarity.values) ...[
+                      _RarityFilterChip(
+                        label: rarity.thaiDisplayName,
+                        rarity: rarity,
+                        selected: _selectedRarity == rarity,
+                        onTap: () => setState(() => _selectedRarity = rarity),
                       ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: canAfford
-                        ? () async {
-                            final outcome = await ref
-                                .read(rewardsListProvider.notifier)
-                                .redeem(r.id!);
-                            if (!context.mounted) return;
-                            final message = switch (outcome) {
-                              RedeemOutcome.success =>
-                                'แลก "${r.title}" สำเร็จ! เพลิดเพลินกับรางวัลของคุณ',
-                              RedeemOutcome.notEnoughGold =>
-                                'เหรียญทองไม่เพียงพอ',
-                              RedeemOutcome.notEnoughGems =>
-                                'เพชรไม่เพียงพอ',
-                              RedeemOutcome.inventoryFull =>
-                                'คลังไอเทมเต็มแล้ว ไปขยายช่องคลังที่แท็บ "คลังไอเทม" ก่อน',
-                              RedeemOutcome.purchaseLimitReached =>
-                                'รางวัลนี้ถึงโควตาการแลกในช่วงเวลานี้แล้ว',
-                            };
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(message),
-                                backgroundColor:
-                                    outcome == RedeemOutcome.success
-                                    ? AppColors.primaryDark
-                                    : AppColors.error,
-                              ),
-                            );
-                          }
-                        : null,
-                    child: const Text('แลกรางวัล'),
-                  ),
-                ],
+                      const SizedBox(width: 8),
+                    ],
+                  ],
+                ),
               ),
-            );
-          },
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: filteredRewards.isEmpty
+                  ? const Center(
+                      child: Text('ไม่มีไอเทมในระดับความหายากนี้ในร้านค้า'),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(top: 4),
+                      itemCount: filteredRewards.length,
+                      itemBuilder: (context, index) {
+                        final r = filteredRewards[index];
+                        final canAfford = (widget.user?.gems ?? 0) >= r.goldCost;
+                        final rarityClr = _rarityColor(r.rarity);
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardSurface,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.border, width: 1.5),
+                          ),
+                          child: Row(
+                            children: [
+                              // Icon container — same style as inventory
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: rarityClr.withAlpha(35),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: rarityClr, width: 1.5),
+                                ),
+                                child: Icon(_categoryIcon(r.itemCategory), color: rarityClr),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Title + rarity badge
+                                    Row(
+                                      children: [
+                                        Flexible(
+                                          child: Text(
+                                            r.title,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 15,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: rarityClr.withAlpha(35),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(color: rarityClr, width: 1),
+                                          ),
+                                          child: Text(
+                                            r.rarity.displayName,
+                                            style: TextStyle(
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              color: rarityClr,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    // Category name
+                                    Text(
+                                      r.itemCategory.displayName,
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textMuted,
+                                      ),
+                                    ),
+                                    // Description
+                                    if (r.description != null)
+                                      Text(
+                                        r.description!,
+                                        style: const TextStyle(
+                                          color: AppColors.textMuted,
+                                          fontSize: 12,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    const SizedBox(height: 2),
+                                    // Gem cost
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.diamond_rounded,
+                                          size: 13,
+                                          color: Color(0xFF0284C7),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          '${r.goldCost} เพชร',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Color(0xFF0284C7),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Buy button
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: canAfford
+                                      ? AppColors.secondary
+                                      : Colors.grey.shade400,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: canAfford
+                                    ? () async {
+                                        final outcome = await ref
+                                            .read(rewardsListProvider.notifier)
+                                            .redeem(r.id!);
+                                        if (!context.mounted) return;
+                                        final message = switch (outcome) {
+                                          RedeemOutcome.success =>
+                                            'แลก "${r.title}" สำเร็จ! เพลิดเพลินกับรางวัลของคุณ',
+                                          RedeemOutcome.notEnoughGold =>
+                                            'เหรียญทองไม่เพียงพอ',
+                                          RedeemOutcome.notEnoughGems =>
+                                            'เพชรไม่เพียงพอ',
+                                          RedeemOutcome.inventoryFull =>
+                                            'คลังไอเทมเต็มแล้ว ไปขยายช่องคลังที่แท็บ "คลังไอเทม" ก่อน',
+                                          RedeemOutcome.purchaseLimitReached =>
+                                            'รางวัลนี้ถึงโควตาการแลกในช่วงเวลานี้แล้ว',
+                                        };
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(message),
+                                            backgroundColor:
+                                                outcome == RedeemOutcome.success
+                                                ? AppColors.primaryDark
+                                                : AppColors.error,
+                                          ),
+                                        );
+                                      }
+                                    : null,
+                                child: const Text('แลกรางวัล'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         );
       },
+    );
+  }
+}
+
+class _RarityFilterChip extends StatelessWidget {
+  final String label;
+  final ItemRarity? rarity;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RarityFilterChip({
+    required this.label,
+    this.rarity,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = rarity == null ? AppColors.primaryDark : _rarityColor(rarity!);
+    final chipTextColor = selected ? AppColors.primaryDark : AppColors.textSecondary;
+
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (selected)
+            const Icon(Icons.check_rounded, size: 16, color: AppColors.primaryDark)
+          else if (rarity != null)
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
+              ),
+            ),
+          if (selected || rarity != null) const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: chipTextColor,
+            ),
+          ),
+        ],
+      ),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      showCheckmark: false,
+      selectedColor: AppColors.primaryLight,
+      backgroundColor: Colors.transparent,
+      side: BorderSide(
+        color: selected ? AppColors.primaryDark : AppColors.borderLight,
+        width: selected ? 1.5 : 1,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      visualDensity: VisualDensity.compact,
     );
   }
 }
@@ -408,7 +521,7 @@ class _RealLifeRewardsTab extends ConsumerWidget {
                   }
                 },
                 icon: const Icon(Icons.add_rounded),
-                label: const Text('+ เพิ่มรางวัลชีวิตจริง'),
+                label: const Text('เพิ่มรางวัลชีวิตจริง'),
               ),
             ),
             const SizedBox(height: 8),

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/achievement_model.dart';
@@ -15,13 +17,21 @@ class QuestFilter {
   final bool? isCompleted;
   final bool excludeCheckedInToday;
 
-  const QuestFilter({this.category, this.isCompleted, this.excludeCheckedInToday = false});
+  const QuestFilter({
+    this.category,
+    this.isCompleted,
+    this.excludeCheckedInToday = false,
+  });
 
   static const all = QuestFilter();
   static const completed = QuestFilter(isCompleted: true);
   static const main = QuestFilter(category: 'MAIN', isCompleted: false);
   static const side = QuestFilter(category: 'SIDE', isCompleted: false);
-  static const daily = QuestFilter(category: 'DAILY', isCompleted: false, excludeCheckedInToday: true);
+  static const daily = QuestFilter(
+    category: 'DAILY',
+    isCompleted: false,
+    excludeCheckedInToday: true,
+  );
   static const incomplete = QuestFilter(isCompleted: false);
 
   @override
@@ -43,12 +53,24 @@ final questListProvider =
       QuestFilter
     >(QuestListNotifier.new);
 
+final campaignCheckinCountProvider = FutureProvider.family<int, int>((
+  ref,
+  questId,
+) async {
+  ref.watch(questListProvider(QuestFilter.all));
+  return ref.read(databaseHelperProvider).getHabitCheckinCount(questId);
+});
+
 class QuestListNotifier
     extends FamilyAsyncNotifier<List<QuestModel>, QuestFilter> {
   @override
   Future<List<QuestModel>> build(QuestFilter arg) async {
     final db = ref.read(databaseHelperProvider);
-    return db.getQuests(category: arg.category, isCompleted: arg.isCompleted, excludeCheckedInToday: arg.excludeCheckedInToday);
+    return db.getQuests(
+      category: arg.category,
+      isCompleted: arg.isCompleted,
+      excludeCheckedInToday: arg.excludeCheckedInToday,
+    );
   }
 
   Future<void> refresh() async {
@@ -56,15 +78,20 @@ class QuestListNotifier
     state = await AsyncValue.guard(
       () => ref
           .read(databaseHelperProvider)
-          .getQuests(category: arg.category, isCompleted: arg.isCompleted, excludeCheckedInToday: arg.excludeCheckedInToday),
+          .getQuests(
+            category: arg.category,
+            isCompleted: arg.isCompleted,
+            excludeCheckedInToday: arg.excludeCheckedInToday,
+          ),
     );
   }
 }
 
 /// เควสต์ที่ทำสำเร็จวันนี้ — ใช้แสดงในหน้า Stats ด้วยสถานะขีดฆ่า +
 /// ไอคอนเครื่องหมายถูกสีเขียว + ตัวเลขโบนัส EXP/Gold ที่ได้รับ
-final todayCompletedQuestsProvider =
-    FutureProvider<List<QuestModel>>((ref) async {
+final todayCompletedQuestsProvider = FutureProvider<List<QuestModel>>((
+  ref,
+) async {
   // invalidate เมื่อ questListProvider เปลี่ยน (เช่น มีเควสใหม่สำเร็จ)
   ref.watch(questListProvider(QuestFilter.all));
   final db = ref.read(databaseHelperProvider);
@@ -75,11 +102,15 @@ final todayCompletedQuestsProvider =
 /// จำนวนรวมที่ส่วนหัวของกระดาน เพื่อให้ผู้เล่นรู้ว่าวันนี้มีกี่ภารกิจ
 /// ที่ต้องทำจริง (ไม่นับเควสต์ที่ไม่ตรงวัน เช่น เลือกทำเฉพาะ จ-ศ แต่วันนี้
 /// เป็นเสาร์)
-final todayFrequencyQuestsProvider =
-    FutureProvider<List<QuestModel>>((ref) async {
+final todayFrequencyQuestsProvider = FutureProvider<List<QuestModel>>((
+  ref,
+) async {
   ref.watch(questListProvider(QuestFilter.all));
   final db = ref.read(databaseHelperProvider);
-  final allIncomplete = await db.getQuests(isCompleted: false, excludeCheckedInToday: true);
+  final allIncomplete = await db.getQuests(
+    isCompleted: false,
+    excludeCheckedInToday: true,
+  );
   final todayWeekday = DateTime.now().weekday; // ISO: 1=จันทร์ ... 7=อาทิตย์
   return allIncomplete.where((q) {
     final allowed = q.effectiveHabitWeekdays;
@@ -128,6 +159,8 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       await db.insertSubTask(SubTaskModel(questId: id, title: trimmed));
     }
     ref.invalidate(questListProvider);
+    ref.invalidate(heroStatsProvider);
+    ref.invalidate(recentQuestActivitiesProvider);
     return id;
   }
 
@@ -135,15 +168,37 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     final db = ref.read(databaseHelperProvider);
     await db.updateQuest(quest);
     ref.invalidate(questListProvider);
+    ref.invalidate(heroStatsProvider);
+    ref.invalidate(weeklyStatsProvider);
+    ref.invalidate(recentQuestActivitiesProvider);
   }
 
-  Future<({int exp, int gold, int day, bool completed, bool isMiniBoss, bool isFinalBoss, int bossBonusExp, int bossBonusGold})> checkInHabit(
+  Future<
+    ({
+      int exp,
+      int gold,
+      int day,
+      bool completed,
+      bool isMiniBoss,
+      bool isFinalBoss,
+      int bossBonusExp,
+      int bossBonusGold,
+      int bossBonusGems,
+    })
+  >
+  checkInHabit(
     int questId, {
     DateTime? now,
+    bool fromFocusTimer = false,
   }) async {
     final db = ref.read(databaseHelperProvider);
     final quest = await db.getQuestById(questId);
-    if (quest == null || quest.goalType != QuestGoalType.dailyHabit) {
+    final isDailyHabit = quest?.goalType == QuestGoalType.dailyHabit;
+    final isFocusCampaign =
+        fromFocusTimer &&
+        quest?.goalType == QuestGoalType.focus &&
+        quest!.isCampaign;
+    if (quest == null || (!isDailyHabit && !isFocusCampaign)) {
       throw StateError('This quest is not a daily habit.');
     }
     final current = now ?? DateTime.now();
@@ -168,7 +223,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     final user = ref.read(userProvider).valueOrNull;
     if (user == null) throw StateError('ไม่มีผู้ใช้ที่กำลังใช้งาน');
     final count = await db.getHabitCheckinCount(questId);
-    final targetDays = quest.habitTargetDays ?? 30;
+    final targetDays = quest.habitTargetDays;
     final result = ref
         .read(rewardCalculatorProvider)
         .resolveQuestCompletionReward(
@@ -180,22 +235,36 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
               (await db.getTodayEarnedTotals())['gold'] ?? 0,
           hasRpgClass: user.rpgClass != null,
         );
-    final completed = count + 1 >= targetDays;
-    
+    final completed = targetDays != null && count + 1 >= targetDays;
+
     // Boss Logic
     final day = count + 1;
-    final isFinalBoss = completed && targetDays > 0;
-    final isMiniBoss = day % 5 == 0 && !isFinalBoss && targetDays > 0;
-    
+    final isFinalBoss = completed;
+    final isMiniBoss = targetDays != null && day % 5 == 0 && !isFinalBoss;
+
     int bossBonusExp = 0;
     int bossBonusGold = 0;
-    
+    int bossBonusGems = 0;
+    final random = math.Random();
+
     if (isFinalBoss) {
-      bossBonusExp = 200;
-      bossBonusGold = 100;
+      bossBonusGems = ref
+          .read(rewardCalculatorProvider)
+          .calculateBossDiamondReward(isFinalBoss: true);
+      if (random.nextBool()) {
+        bossBonusExp = 200 + random.nextInt(201);
+      } else {
+        bossBonusGold = 100 + random.nextInt(101);
+      }
     } else if (isMiniBoss) {
-      bossBonusExp = 50;
-      bossBonusGold = 25;
+      bossBonusGems = ref
+          .read(rewardCalculatorProvider)
+          .calculateBossDiamondReward(isMiniBoss: true);
+      if (random.nextBool()) {
+        bossBonusExp = 50 + random.nextInt(51);
+      } else {
+        bossBonusGold = 25 + random.nextInt(26);
+      }
     }
 
     final totalExp = result.awardedExp + bossBonusExp;
@@ -213,6 +282,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       exp: totalExp,
       gold: totalGold,
       hpGain: hpGain,
+      bonusGems: bossBonusGems,
     );
     await db.checkInHabitAndUpdateUser(
       questId: questId,
@@ -225,6 +295,8 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     await ref.read(userProvider.notifier).refresh();
     ref.invalidate(questListProvider);
     ref.invalidate(weeklyStatsProvider);
+    ref.invalidate(heroStatsProvider);
+    ref.invalidate(recentQuestActivitiesProvider);
     return (
       exp: totalExp,
       gold: totalGold,
@@ -234,6 +306,7 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
       isFinalBoss: isFinalBoss,
       bossBonusExp: bossBonusExp,
       bossBonusGold: bossBonusGold,
+      bossBonusGems: bossBonusGems,
     );
   }
 
@@ -244,6 +317,8 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     // เควสที่ลบอาจเคยสำเร็จไปแล้ว (นับอยู่ในกราฟ 7 วัน) จึงต้อง invalidate
     // weeklyStatsProvider ด้วย ไม่งั้นกราฟจะค้างนับเควสที่ถูกลบไปแล้ว
     ref.invalidate(weeklyStatsProvider);
+    ref.invalidate(heroStatsProvider);
+    ref.invalidate(recentQuestActivitiesProvider);
   }
 
   Future<int> failOrAbandonQuest(int questId) async {
@@ -347,6 +422,8 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
     // ถ้าไม่ invalidate ตรงนี้ กราฟ 7 วันใน Stats จะไม่อัปเดตหลังทำเควส
     // สำเร็จ จนกว่าจะ hot reload/restart แอป
     ref.invalidate(weeklyStatsProvider);
+    ref.invalidate(heroStatsProvider);
+    ref.invalidate(recentQuestActivitiesProvider);
 
     // เช็ค Achievement หลังทำเควสสำเร็จทุกครั้ง — ต้องนับจำนวนเควสที่
     // สำเร็จสะสม "หลัง" mark complete แล้ว (รวมอันนี้ด้วย) ถึงจะถูกต้อง

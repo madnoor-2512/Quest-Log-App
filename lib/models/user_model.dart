@@ -126,9 +126,7 @@ class UserModel {
     int hpGain = 0,
     int bonusGems = 0,
   }) {
-    final adjustedExp = meltExpBonusPending
-        ? (exp * 1.25).round()
-        : exp;
+    final adjustedExp = meltExpBonusPending ? (exp * 1.25).round() : exp;
     var nextExp = currentExp + adjustedExp;
     var nextLevel = level;
     var nextMaxExp = maxExp;
@@ -153,7 +151,9 @@ class UserModel {
       newHp = nextMaxHp;
     } else {
       if (newHp > nextMaxHp) {
-        overflowGold = newHp - nextMaxHp; // หาก HP เต็ม 100% ส่วนที่ล้นจะถูกแปลงเป็นโบนัสเหรียญทอง
+        overflowGold =
+            newHp -
+            nextMaxHp; // หาก HP เต็ม 100% ส่วนที่ล้นจะถูกแปลงเป็นโบนัสเหรียญทอง
         newHp = nextMaxHp;
       }
     }
@@ -186,6 +186,9 @@ class UserModel {
     }
     return copyWith(currentHp: newHp);
   }
+
+  UserModel applyCampaignHpDamage(int damage) =>
+      copyWith(currentHp: (currentHp - damage).clamp(0, maxHp).toInt());
 
   /// สร้าง object ใหม่จาก object เดิม พร้อมค่าที่เปลี่ยนแปลง
   ///

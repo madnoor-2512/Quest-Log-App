@@ -76,6 +76,33 @@ class RewardCalculatorService {
     return QuickQuestReward(exp: exp, gold: gold);
   }
 
+  /// กำหนด Diamond drop schedule จากบอส/เควสต์สำเร็จ
+  /// - มินิบอส: 3–5 เพชร
+  /// - บอสใหญ่: 15–20 เพชร
+  /// - เควสต์ปกติ: 0 เพชร
+  int calculateBossDiamondReward({
+    bool isMiniBoss = false,
+    bool isFinalBoss = false,
+  }) {
+    if (isFinalBoss) {
+      return GamificationConfig.finalBossDiamondMin +
+          Random().nextInt(
+            GamificationConfig.finalBossDiamondMax -
+                GamificationConfig.finalBossDiamondMin +
+                1,
+          );
+    }
+    if (isMiniBoss) {
+      return GamificationConfig.miniBossDiamondMin +
+          Random().nextInt(
+            GamificationConfig.miniBossDiamondMax -
+                GamificationConfig.miniBossDiamondMin +
+                1,
+          );
+    }
+    return 0;
+  }
+
   /// ประมาณ HP ที่จะฟื้นฟูเมื่อทำเควสต์ระดับความยากนี้สำเร็จ — สูตรเดียว
   /// กับที่ QuestActionsNotifier ใช้จริงตอนทำเควสต์สำเร็จ (ความยาก x 5,
   /// บวกโบนัส +25% ถ้า Streak ต่อเนื่องตั้งแต่ 3 วันขึ้นไป) แยกไว้ที่นี่

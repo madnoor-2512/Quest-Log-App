@@ -54,6 +54,10 @@ class GamificationConfig {
   static const double concurrentQuestBonus = 0.15; // +15%
   static const int habitDailyExpReward = 30;
   static const int habitDailyGoldReward = 15;
+  static const int miniBossDiamondMin = 3;
+  static const int miniBossDiamondMax = 5;
+  static const int finalBossDiamondMin = 15;
+  static const int finalBossDiamondMax = 20;
   static const int streakRepairHammerCost = 350;
   static const int freezeStreakShieldCost = 200;
   static const int meltFrozenStreakCost = 100;
