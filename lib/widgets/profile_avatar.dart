@@ -1,12 +1,11 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../theme/app_avatars.dart';
 import '../theme/app_colors.dart';
 
-class ProfileAvatar extends StatelessWidget {
+class ProfileAvatar extends StatefulWidget {
   final int avatarIndex;
   final String? imageBase64;
   final double size;
@@ -31,36 +30,73 @@ class ProfileAvatar extends StatelessWidget {
   });
 
   @override
+  State<ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends State<ProfileAvatar> {
+  MemoryImage? _imageProvider;
+
+  @override
+  void initState() {
+    super.initState();
+    _updateImageProvider();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfileAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.imageBase64 != oldWidget.imageBase64) {
+      _updateImageProvider();
+    }
+  }
+
+  void _updateImageProvider() {
+    final encoded = widget.imageBase64;
+    if (encoded == null || encoded.isEmpty) {
+      _imageProvider = null;
+      return;
+    }
+    try {
+      _imageProvider = MemoryImage(base64Decode(encoded));
+    } on FormatException {
+      _imageProvider = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final bytes = _decodeImage();
-    final isCircle = borderRadius == 0;
+    final isCircle = widget.borderRadius == 0;
     final decoration = BoxDecoration(
-      color: backgroundColor,
+      color: widget.backgroundColor,
       shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-      borderRadius: isCircle ? null : BorderRadius.circular(borderRadius),
-      border: borderColor == null
+      borderRadius: isCircle
           ? null
-          : Border.all(color: borderColor!, width: borderWidth),
+          : BorderRadius.circular(widget.borderRadius),
+      border: widget.borderColor == null
+          ? null
+          : Border.all(color: widget.borderColor!, width: widget.borderWidth),
     );
-    final child = bytes == null
-        ? Icon(heroAvatarIcon(avatarIndex), size: iconSize, color: iconColor)
-        : Image.memory(bytes, width: size, height: size, fit: BoxFit.cover);
+    final fallback = Icon(
+      heroAvatarIcon(widget.avatarIndex),
+      size: widget.iconSize,
+      color: widget.iconColor,
+    );
+    final child = _imageProvider == null
+        ? fallback
+        : Image(
+            image: _imageProvider!,
+            width: widget.size,
+            height: widget.size,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => fallback,
+          );
 
     return Container(
-      width: size,
-      height: size,
+      width: widget.size,
+      height: widget.size,
       decoration: decoration,
       clipBehavior: Clip.antiAlias,
       child: child,
     );
-  }
-
-  Uint8List? _decodeImage() {
-    if (imageBase64 == null || imageBase64!.isEmpty) return null;
-    try {
-      return base64Decode(imageBase64!);
-    } on FormatException {
-      return null;
-    }
   }
 }
