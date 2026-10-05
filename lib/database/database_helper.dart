@@ -1024,7 +1024,8 @@ class DatabaseHelper {
         continue;
       }
 
-      final needsRefresh = existingReward.goldCost != reward.goldCost ||
+      final needsRefresh =
+          existingReward.goldCost != reward.goldCost ||
           existingReward.description != reward.description ||
           existingReward.iconName != reward.iconName ||
           existingReward.itemCategory != reward.itemCategory ||
@@ -1272,6 +1273,36 @@ class DatabaseHelper {
       );
       if (rewardMaps.isEmpty) return null;
       return RewardModel.fromMap(rewardMaps.first);
+    });
+  }
+
+  /// ทิ้งไอเทม 1 ชิ้น — ลด quantity และลบแถวเมื่อชิ้นสุดท้ายถูกทิ้ง
+  Future<bool> discardInventoryItem(int inventoryItemId) async {
+    final db = await database;
+    return db.transaction<bool>((txn) async {
+      final rows = await txn.query(
+        tableInventoryItems,
+        where: 'id = ?',
+        whereArgs: [inventoryItemId],
+      );
+      if (rows.isEmpty) return false;
+
+      final quantity = rows.first['quantity'] as int? ?? 1;
+      if (quantity <= 1) {
+        await txn.delete(
+          tableInventoryItems,
+          where: 'id = ?',
+          whereArgs: [inventoryItemId],
+        );
+      } else {
+        await txn.update(
+          tableInventoryItems,
+          {'quantity': quantity - 1},
+          where: 'id = ?',
+          whereArgs: [inventoryItemId],
+        );
+      }
+      return true;
     });
   }
 

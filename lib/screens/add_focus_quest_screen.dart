@@ -166,6 +166,8 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final isCampaignEdit = widget.questToEdit?.isCampaign ?? false;
+
     if (!_hasTargetDays &&
         _frequency == HabitFrequency.custom &&
         _customWeekdays.isEmpty) {
@@ -214,21 +216,31 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
       final quest = isEdit
           ? widget.questToEdit!.copyWith(
               title: _titleController.text.trim(),
-              difficulty: _difficulty,
+          difficulty: isCampaignEdit
+            ? widget.questToEdit!.difficulty
+            : _difficulty,
               activityType: _activityType,
-              estimatedMinutes: _estimatedMinutes,
+          estimatedMinutes: isCampaignEdit
+            ? widget.questToEdit!.estimatedMinutes
+            : _estimatedMinutes,
               expReward: result.expReward,
               goldReward: result.goldReward,
-              habitFrequency: _hasTargetDays
-                  ? HabitFrequency.daily
-                  : _frequency,
+          habitFrequency: isCampaignEdit
+            ? widget.questToEdit!.habitFrequency
+            : (_hasTargetDays ? HabitFrequency.daily : _frequency),
               habitCustomWeekdays:
-                  !_hasTargetDays && _frequency == HabitFrequency.custom
+            !isCampaignEdit &&
+                !_hasTargetDays &&
+                _frequency == HabitFrequency.custom
                   ? (_customWeekdays.toList()..sort())
                   : null,
-              habitTargetDays: _hasTargetDays ? _targetDays : 0,
-              dueDate: _customEndDate?.toIso8601String(),
-              clearDueDate: !_hasTargetDays || _customEndDate == null,
+          habitTargetDays: isCampaignEdit
+            ? widget.questToEdit!.habitTargetDays
+            : (_hasTargetDays ? _targetDays : 0),
+          dueDate: isCampaignEdit
+            ? widget.questToEdit!.dueDate
+            : _customEndDate?.toIso8601String(),
+          clearDueDate: !isCampaignEdit && (!_hasTargetDays || _customEndDate == null),
             )
           : QuestModel(
               title: _titleController.text.trim(),
@@ -301,6 +313,7 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
     final effectiveWeekdays = _effectiveWeekdays;
 
     final isEdit = widget.questToEdit != null;
+    final isCampaign = widget.questToEdit?.isCampaign ?? false;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -337,7 +350,9 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isEdit ? 'แก้ไขเควสต์โฟกัส' : 'สร้างเควสต์โฟกัส',
+                          isEdit
+                              ? (isCampaign ? 'แก้ไขแคมเปญโฟกัส' : 'แก้ไขเควสต์โฟกัส')
+                              : 'สร้างเควสต์โฟกัส',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -347,7 +362,9 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                         const SizedBox(height: 2),
                         Text(
                           isEdit
-                              ? 'แก้ไขรายละเอียดของภารกิจ'
+                              ? (isCampaign
+                                    ? 'แคมเปญนี้ถูกล็อคเพื่อรักษาคุณสมบัติของแคมเปญ'
+                                    : 'แก้ไขรายละเอียดของภารกิจ')
                               : 'ตั้งเป้าหมายและจัดสรรเวลาเพื่อเข้าสู่สมาธิลึก',
                           style: const TextStyle(
                             fontSize: 12,
@@ -451,9 +468,25 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'ระยะเวลาโฟกัส',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Row(
+                    children: [
+                      const Text(
+                        'ระยะเวลาโฟกัส',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (isCampaign)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8.0),
+                          child: Icon(
+                            Icons.lock_rounded,
+                            size: 14,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                    ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -481,13 +514,21 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                   thumbColor: AppColors.secondary,
                   overlayColor: AppColors.secondary.withAlpha(40),
                 ),
-                child: Slider(
-                  value: _estimatedMinutes.toDouble(),
-                  min: 5,
-                  max: 180,
-                  divisions: 35,
-                  onChanged: (val) =>
-                      setState(() => _estimatedMinutes = val.round()),
+                child: AbsorbPointer(
+                  absorbing: isCampaign,
+                  child: Opacity(
+                    opacity: isCampaign ? 0.6 : 1.0,
+                    child: Slider(
+                      value: _estimatedMinutes.toDouble(),
+                      min: 5,
+                      max: 180,
+                      divisions: 35,
+                      onChanged: isCampaign
+                          ? null
+                          : (val) =>
+                              setState(() => _estimatedMinutes = val.round()),
+                    ),
+                  ),
                 ),
               ),
               Row(
@@ -513,9 +554,25 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'ระดับความยาก',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Row(
+                    children: [
+                      const Text(
+                        'ระดับความยาก',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (isCampaign)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8.0),
+                          child: Icon(
+                            Icons.lock_rounded,
+                            size: 14,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                    ],
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -538,26 +595,34 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                 ],
               ),
               const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(5, (index) {
-                  final star = index + 1;
-                  final isSelected = star <= _difficulty;
-                  return IconButton(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    constraints: const BoxConstraints(),
-                    icon: Icon(
-                      isSelected
-                          ? Icons.star_rounded
-                          : Icons.star_outline_rounded,
-                      size: 36,
-                      color: isSelected
-                          ? AppColors.difficultyColors[_difficulty - 1]
-                          : AppColors.borderLight,
-                    ),
-                    onPressed: () => setState(() => _difficulty = star),
-                  );
-                }),
+              AbsorbPointer(
+                absorbing: isCampaign,
+                child: Opacity(
+                  opacity: isCampaign ? 0.6 : 1.0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      final star = index + 1;
+                      final isSelected = star <= _difficulty;
+                      return IconButton(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints: const BoxConstraints(),
+                        icon: Icon(
+                          isSelected
+                              ? Icons.star_rounded
+                              : Icons.star_outline_rounded,
+                          size: 36,
+                          color: isSelected
+                              ? AppColors.difficultyColors[_difficulty - 1]
+                              : AppColors.borderLight,
+                        ),
+                        onPressed: isCampaign
+                            ? null
+                            : () => setState(() => _difficulty = star),
+                      );
+                    }),
+                  ),
+                ),
               ),
               Row(
                 children: [
@@ -581,49 +646,68 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
               const SizedBox(height: 20),
 
               // ความถี่ในการทำ
-              const Text(
-                'ความถี่ในการทำ',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-              ),
-              const SizedBox(height: 8),
               Row(
-                children: HabitFrequency.values.map((freq) {
-                  final isSelected = _frequency == freq;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: _hasTargetDays
-                          ? null
-                          : () => setState(() => _frequency = freq),
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.primaryDark
-                              : AppColors.surface,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isSelected
-                                ? AppColors.primaryDark
-                                : AppColors.borderLight,
-                          ),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          freq.displayName,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected
-                                ? Colors.white
-                                : AppColors.textSecondary,
-                          ),
-                        ),
+                children: [
+                  const Text(
+                    'ความถี่ในการทำ',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  if (isCampaign)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8.0),
+                      child: Icon(
+                        Icons.lock_rounded,
+                        size: 14,
+                        color: AppColors.textMuted,
                       ),
                     ),
-                  );
-                }).toList(),
+                ],
+              ),
+              const SizedBox(height: 8),
+              AbsorbPointer(
+                absorbing: isCampaign || _hasTargetDays,
+                child: Opacity(
+                  opacity: (isCampaign || _hasTargetDays) ? 0.6 : 1.0,
+                  child: Row(
+                    children: HabitFrequency.values.map((freq) {
+                      final isSelected = _frequency == freq;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: _hasTargetDays || isCampaign
+                              ? null
+                              : () => setState(() => _frequency = freq),
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 3),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.primaryDark
+                                  : AppColors.surface,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.primaryDark
+                                    : AppColors.borderLight,
+                              ),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              freq.displayName,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
               ),
               const SizedBox(height: 10),
 
@@ -685,19 +769,32 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Expanded(
-                    child: Text(
-                      'ตั้งเป้าหมาย (ระยะเวลาสิ้นสุด)',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        const Text(
+                          'ตั้งเป้าหมาย (ระยะเวลาสิ้นสุด)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (isCampaign)
+                          const Padding(
+                            padding: EdgeInsets.only(left: 8.0),
+                            child: Icon(
+                              Icons.lock_rounded,
+                              size: 14,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   Switch(
                     value: _hasTargetDays,
                     activeThumbColor: AppColors.primary,
-                    onChanged: widget.questToEdit?.isCampaign ?? false
+                    onChanged: isCampaign
                         ? null
                         : (enabled) => setState(() {
                             _hasTargetDays = enabled;
@@ -719,31 +816,40 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                 ),
               if (_hasTargetDays) ...[
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _buildDurationChip(7, '7 วัน'),
-                    _buildDurationChip(14, '14 วัน'),
-                    _buildDurationChip(21, '21 วัน'),
-                    _buildDurationChip(30, '30 วัน'),
-                    _buildDurationChip(0, 'เลือกวันที่สิ้นสุด'),
-                  ],
-                ),
-                if (_isCustomDuration) ...[
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: widget.questToEdit?.isCampaign ?? false
-                        ? null
-                        : _pickCustomEndDate,
-                    icon: const Icon(Icons.calendar_month_rounded),
-                    label: Text(
-                      _customEndDate == null
-                          ? 'เลือกวันที่สิ้นสุด'
-                          : 'สิ้นสุด ${_customEndDate!.day}/${_customEndDate!.month}/${_customEndDate!.year} ($_targetDays วัน)',
+                AbsorbPointer(
+                  absorbing: isCampaign,
+                  child: Opacity(
+                    opacity: isCampaign ? 0.6 : 1.0,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _buildDurationChip(7, '7 วัน'),
+                            _buildDurationChip(14, '14 วัน'),
+                            _buildDurationChip(21, '21 วัน'),
+                            _buildDurationChip(30, '30 วัน'),
+                            _buildDurationChip(0, 'เลือกวันที่สิ้นสุด'),
+                          ],
+                        ),
+                        if (_isCustomDuration) ...[
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                            onPressed: isCampaign ? null : _pickCustomEndDate,
+                            icon: const Icon(Icons.calendar_month_rounded),
+                            label: Text(
+                              _customEndDate == null
+                                  ? 'เลือกวันที่สิ้นสุด'
+                                  : 'สิ้นสุด ${_customEndDate!.day}/${_customEndDate!.month}/${_customEndDate!.year} ($_targetDays วัน)',
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ],
+                ),
               ],
               const SizedBox(height: 20),
 
