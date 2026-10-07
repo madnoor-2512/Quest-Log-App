@@ -9,6 +9,7 @@ import '../models/sub_task_model.dart';
 import '../services/gamification_config.dart';
 import 'achievements_providers.dart';
 import 'core_providers.dart';
+import 'focus_providers.dart';
 import 'user_provider.dart';
 import 'weekly_stats_provider.dart';
 
@@ -166,8 +167,18 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
 
   Future<void> updateQuest(QuestModel quest) async {
     final db = ref.read(databaseHelperProvider);
+    // หากเควสต์ที่กำลังแก้ไขมี Timer กำลังทำงานอยู่ ให้ invalidate ข้อมูลเซสชันเพื่อให้ซิงก์
+    final activeTimers =
+        ref.read(activeQuestTimersProvider).valueOrNull ?? const [];
+    final isFocused = activeTimers.any(
+      (t) => t.questId == quest.id && t.remainingSeconds > 0,
+    );
+    if (isFocused) {
+      ref.invalidate(activeSessionQuestsProvider);
+    }
     await db.updateQuest(quest);
     ref.invalidate(questListProvider);
+    ref.invalidate(activeSessionQuestsProvider);
     ref.invalidate(heroStatsProvider);
     ref.invalidate(weeklyStatsProvider);
     ref.invalidate(recentQuestActivitiesProvider);
@@ -312,8 +323,29 @@ class QuestActionsNotifier extends AsyncNotifier<void> {
 
   Future<void> deleteQuest(int questId) async {
     final db = ref.read(databaseHelperProvider);
+    // ตรวจสอบระดับ Provider: หากเควสต์ที่กำลังจะถูกลบ มี Timer กำลังวิ่งอยู่
+    // ให้ระบบทำการ Force Stop Timer ของเควสต์นั้นทันทีอย่างเงียบๆ (เพื่อไม่ให้แครช)
+    // และทำโทษหัก HP ถือว่าเป็นการหลบหนีจากการต่อสู้
+    final activeTimers =
+        ref.read(activeQuestTimersProvider).valueOrNull ?? const [];
+    final runningTimer = activeTimers
+        .where((t) => t.questId == questId && t.remainingSeconds > 0)
+        .firstOrNull;
+    if (runningTimer != null) {
+      await ref
+          .read(activeQuestTimersProvider.notifier)
+          .forceStopTimer(questId);
+      final quest = await db.getQuestById(questId);
+      final damage = (quest != null && quest.difficulty > 0)
+          ? quest.difficulty * 8
+          : 15;
+      await ref.read(userProvider.notifier).applyHpDamage(damage);
+    }
+
     await db.deleteQuest(questId);
     ref.invalidate(questListProvider);
+    ref.invalidate(activeSessionQuestsProvider);
+    ref.invalidate(activeQuestTimersProvider);
     // เควสที่ลบอาจเคยสำเร็จไปแล้ว (นับอยู่ในกราฟ 7 วัน) จึงต้อง invalidate
     // weeklyStatsProvider ด้วย ไม่งั้นกราฟจะค้างนับเควสที่ถูกลบไปแล้ว
     ref.invalidate(weeklyStatsProvider);

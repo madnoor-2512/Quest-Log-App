@@ -11,11 +11,7 @@ import 'theme/app_theme.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-  runApp(
-    const ProviderScope(
-      child: QuestLogApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: QuestLogApp()));
 }
 
 class QuestLogApp extends ConsumerWidget {
@@ -40,9 +36,8 @@ class QuestLogApp extends ConsumerWidget {
           }
           return const LoginScreen();
         },
-        loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        ),
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
         error: (e, st) => const LoginScreen(),
       ),
     );

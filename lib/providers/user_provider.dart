@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user_model.dart';
+import '../services/audio_feedback_service.dart';
 import 'core_providers.dart';
 import 'quest_providers.dart';
 
@@ -187,6 +188,9 @@ class UserNotifier extends AsyncNotifier<UserModel?> {
   Future<void> applyHpDamage(int damage) async {
     final current = state.valueOrNull;
     if (current == null) return;
+    if (damage > 0) {
+      ref.read(audioFeedbackServiceProvider).playHpDamage();
+    }
     final updated = current.applyHpDamage(damage);
     await ref.read(databaseHelperProvider).updateUser(updated);
 

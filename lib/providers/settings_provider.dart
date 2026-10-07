@@ -37,8 +37,9 @@ class SettingsState {
   }
 }
 
-final settingsProvider =
-    AsyncNotifierProvider<SettingsNotifier, SettingsState>(SettingsNotifier.new);
+final settingsProvider = AsyncNotifierProvider<SettingsNotifier, SettingsState>(
+  SettingsNotifier.new,
+);
 
 class SettingsNotifier extends AsyncNotifier<SettingsState> {
   static const _keySound = 'sound_enabled';

@@ -28,6 +28,7 @@ class GamificationConfig {
     ActivityType.stillness: 1.1,
     ActivityType.audioOnly: 0.9,
     ActivityType.physicalHeavy: 1.2,
+    ActivityType.visual: 1.0,
   };
 
   // EXP per sub-task

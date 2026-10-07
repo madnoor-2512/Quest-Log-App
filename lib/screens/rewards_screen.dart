@@ -5,6 +5,7 @@ import '../models/user_model.dart';
 import '../providers/inventory_providers.dart';
 import '../providers/rewards_providers.dart';
 import '../providers/user_provider.dart';
+import '../services/audio_feedback_service.dart';
 import '../services/gamification_config.dart';
 import '../theme/app_colors.dart';
 import '../widgets/add_custom_reward_sheet.dart';
@@ -278,7 +279,12 @@ class _ShopTabState extends ConsumerState<_ShopTab> {
                     _RarityFilterChip(
                       label: 'ทั้งหมด',
                       selected: _selectedRarity == null,
-                      onTap: () => setState(() => _selectedRarity = null),
+                      onTap: () {
+                        ref
+                            .read(audioFeedbackServiceProvider)
+                            .playButtonClick();
+                        setState(() => _selectedRarity = null);
+                      },
                     ),
                     const SizedBox(width: 8),
                     for (final rarity in ItemRarity.values) ...[
@@ -286,7 +292,12 @@ class _ShopTabState extends ConsumerState<_ShopTab> {
                         label: rarity.thaiDisplayName,
                         rarity: rarity,
                         selected: _selectedRarity == rarity,
-                        onTap: () => setState(() => _selectedRarity = rarity),
+                        onTap: () {
+                          ref
+                              .read(audioFeedbackServiceProvider)
+                              .playButtonClick();
+                          setState(() => _selectedRarity = rarity);
+                        },
                       ),
                       const SizedBox(width: 8),
                     ],
@@ -771,14 +782,20 @@ class _InventoryTabState extends ConsumerState<_InventoryTab> {
               _FilterChip(
                 label: 'ทั้งหมด',
                 selected: _filter == null,
-                onTap: () => setState(() => _filter = null),
+                onTap: () {
+                  ref.read(audioFeedbackServiceProvider).playButtonClick();
+                  setState(() => _filter = null);
+                },
               ),
               const SizedBox(width: 8),
               for (final cat in RewardCategory.values) ...[
                 _FilterChip(
                   label: cat.displayName,
                   selected: _filter == cat,
-                  onTap: () => setState(() => _filter = cat),
+                  onTap: () {
+                    ref.read(audioFeedbackServiceProvider).playButtonClick();
+                    setState(() => _filter = cat);
+                  },
                 ),
                 const SizedBox(width: 8),
               ],

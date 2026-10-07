@@ -60,16 +60,41 @@ class StatBadge extends StatelessWidget {
   (IconData, Color, Color, String) _config() {
     switch (type) {
       case StatBadgeType.level:
-        return (Icons.military_tech_rounded, AppColors.primaryDark, AppColors.primaryLight, 'Lv.');
+        return (
+          Icons.military_tech_rounded,
+          AppColors.primaryDark,
+          AppColors.primaryLight,
+          'Lv.',
+        );
       case StatBadgeType.gold:
-        return (Icons.monetization_on_rounded, const Color(0xFFB45309), AppColors.goldLight, '');
+        return (
+          Icons.monetization_on_rounded,
+          const Color(0xFFB45309),
+          AppColors.goldLight,
+          '',
+        );
       case StatBadgeType.streak:
         if (isFrozen) {
-          return (Icons.ac_unit_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE), '❄️');
+          return (
+            Icons.ac_unit_rounded,
+            const Color(0xFF0284C7),
+            const Color(0xFFE0F2FE),
+            '❄️',
+          );
         }
-        return (Icons.local_fire_department_rounded, AppColors.secondary, AppColors.secondaryLight, '🔥');
+        return (
+          Icons.local_fire_department_rounded,
+          AppColors.secondary,
+          AppColors.secondaryLight,
+          '🔥',
+        );
       case StatBadgeType.gem:
-        return (Icons.diamond_rounded, const Color(0xFF0284C7), const Color(0xFFE0F2FE), '💎');
+        return (
+          Icons.diamond_rounded,
+          const Color(0xFF0284C7),
+          const Color(0xFFE0F2FE),
+          '💎',
+        );
     }
   }
 }

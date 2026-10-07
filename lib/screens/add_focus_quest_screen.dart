@@ -118,6 +118,11 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
       label: 'จดจ่อ & ใช้สมอง',
       icon: Icons.psychology_rounded,
     ),
+    (
+      type: ActivityType.visual,
+      label: 'อ่าน / ใช้สายตาจดจ่อ',
+      icon: Icons.menu_book_rounded,
+    ),
   ];
 
   @override
@@ -216,31 +221,33 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
       final quest = isEdit
           ? widget.questToEdit!.copyWith(
               title: _titleController.text.trim(),
-          difficulty: isCampaignEdit
-            ? widget.questToEdit!.difficulty
-            : _difficulty,
+              difficulty: isCampaignEdit
+                  ? widget.questToEdit!.difficulty
+                  : _difficulty,
               activityType: _activityType,
-          estimatedMinutes: isCampaignEdit
-            ? widget.questToEdit!.estimatedMinutes
-            : _estimatedMinutes,
+              estimatedMinutes: isCampaignEdit
+                  ? widget.questToEdit!.estimatedMinutes
+                  : _estimatedMinutes,
               expReward: result.expReward,
               goldReward: result.goldReward,
-          habitFrequency: isCampaignEdit
-            ? widget.questToEdit!.habitFrequency
-            : (_hasTargetDays ? HabitFrequency.daily : _frequency),
+              habitFrequency: isCampaignEdit
+                  ? widget.questToEdit!.habitFrequency
+                  : (_hasTargetDays ? HabitFrequency.daily : _frequency),
               habitCustomWeekdays:
-            !isCampaignEdit &&
-                !_hasTargetDays &&
-                _frequency == HabitFrequency.custom
+                  !isCampaignEdit &&
+                      !_hasTargetDays &&
+                      _frequency == HabitFrequency.custom
                   ? (_customWeekdays.toList()..sort())
                   : null,
-          habitTargetDays: isCampaignEdit
-            ? widget.questToEdit!.habitTargetDays
-            : (_hasTargetDays ? _targetDays : 0),
-          dueDate: isCampaignEdit
-            ? widget.questToEdit!.dueDate
-            : _customEndDate?.toIso8601String(),
-          clearDueDate: !isCampaignEdit && (!_hasTargetDays || _customEndDate == null),
+              habitTargetDays: isCampaignEdit
+                  ? widget.questToEdit!.habitTargetDays
+                  : (_hasTargetDays ? _targetDays : 0),
+              dueDate: isCampaignEdit
+                  ? widget.questToEdit!.dueDate
+                  : _customEndDate?.toIso8601String(),
+              clearDueDate:
+                  !isCampaignEdit &&
+                  (!_hasTargetDays || _customEndDate == null),
             )
           : QuestModel(
               title: _titleController.text.trim(),
@@ -351,7 +358,9 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                       children: [
                         Text(
                           isEdit
-                              ? (isCampaign ? 'แก้ไขแคมเปญโฟกัส' : 'แก้ไขเควสต์โฟกัส')
+                              ? (isCampaign
+                                    ? 'แก้ไขแคมเปญโฟกัส'
+                                    : 'แก้ไขเควสต์โฟกัส')
                               : 'สร้างเควสต์โฟกัส',
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
@@ -526,7 +535,7 @@ class _AddFocusQuestScreenState extends ConsumerState<AddFocusQuestScreen> {
                       onChanged: isCampaign
                           ? null
                           : (val) =>
-                              setState(() => _estimatedMinutes = val.round()),
+                                setState(() => _estimatedMinutes = val.round()),
                     ),
                   ),
                 ),

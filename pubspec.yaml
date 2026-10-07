@@ -18,6 +18,7 @@ dependencies:
   shared_preferences: ^2.3.3
   share_plus: ^13.3.1
   image_picker: ^1.2.3
+  audioplayers: ^6.8.1
 
 dev_dependencies:
   flutter_test:
@@ -41,3 +42,6 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/sounds/
+    - assets/images/

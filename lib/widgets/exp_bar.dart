@@ -57,15 +57,15 @@ class _ExpBarState extends State<ExpBar> {
               Text(
                 'EXP',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.primary,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               Text(
                 '${widget.currentExp} / ${widget.maxExp}',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                  color: AppColors.textSecondary,
+                ),
               ),
             ],
           ),

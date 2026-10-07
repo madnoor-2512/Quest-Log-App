@@ -16,41 +16,12 @@ class QuestConflictService {
 
   static const int maxParallelQuests = 3;
 
-  // คู่ activity type ที่ขัดแย้งกันอย่างรุนแรง (unordered pairs)
-  static const List<({ActivityType a, ActivityType b, String reason})> _severeConflicts = [
-    (
-      a: ActivityType.physicalHeavy,
-      b: ActivityType.stillness,
-      reason: 'ออกกำลังกายหนักและการนั่งสมาธิทำพร้อมกันไม่ได้',
-    ),
-    (
-      a: ActivityType.mental,
-      b: ActivityType.mental,
-      reason: 'ไม่สามารถใช้สมาธิกับภารกิจหลักสองอย่างพร้อมกันได้',
-    ),
-    (
-      a: ActivityType.mental,
-      b: ActivityType.stillness,
-      reason: 'ไม่สามารถร่ายเวทสองบทที่ใช้สมาธิพร้อมกันได้',
-    ),
-    (
-      a: ActivityType.stillness,
-      b: ActivityType.stillness,
-      reason: 'การฝึกสมาธิสองภารกิจควรทำทีละอย่าง',
-    ),
-    (
-      a: ActivityType.audioOnly,
-      b: ActivityType.audioOnly,
-      reason: 'ไม่สามารถรับฟังสองภารกิจพร้อมกันให้ได้คุณภาพได้',
-    ),
-  ];
-
   /// ตรวจว่า [candidate] ขัดแย้งกับเควสใดใน [selected] หรือไม่
   ConflictResult canAddToSelection(
     List<QuestModel> selected,
-    QuestModel candidate,
-    {int maxParallelQuests = QuestConflictService.maxParallelQuests}
-  ) {
+    QuestModel candidate, {
+    int maxParallelQuests = QuestConflictService.maxParallelQuests,
+  }) {
     if (selected.length >= maxParallelQuests) {
       return const ConflictResult(
         hasConflict: true,
@@ -66,10 +37,21 @@ class QuestConflictService {
 
   /// ตรวจคู่ activity type โดยตรง
   ConflictResult checkPair(ActivityType a, ActivityType b) {
-    for (final rule in _severeConflicts) {
-      if ((rule.a == a && rule.b == b) || (rule.a == b && rule.b == a)) {
-        return ConflictResult(hasConflict: true, reason: rule.reason);
-      }
+    final sameForegroundPool =
+        a.resourcePool == b.resourcePool &&
+        !a.isBackgroundAllowed &&
+        !b.isBackgroundAllowed;
+    final physicalVisualConflict =
+        (a.resourcePool == ResourcePool.physical &&
+            b.resourcePool == ResourcePool.visual) ||
+        (a.resourcePool == ResourcePool.visual &&
+            b.resourcePool == ResourcePool.physical);
+    final hasConflict = sameForegroundPool || physicalVisualConflict;
+    if (hasConflict) {
+      final reason = physicalVisualConflict
+          ? 'เควสใช้ร่างกายและสายตาจดจ่อพร้อมกันไม่ได้'
+          : 'เควสทั้งสองใช้ทรัพยากร${a.resourcePool.displayName}เดียวกันและทำเป็นพื้นหลังไม่ได้';
+      return ConflictResult(hasConflict: true, reason: reason);
     }
     return ConflictResult.none;
   }
@@ -78,9 +60,9 @@ class QuestConflictService {
   /// เพราะขัดแย้งกับอย่างน้อยหนึ่งเควสใน [selected]
   Set<int> getBlockedQuestIds(
     List<QuestModel> selected,
-    List<QuestModel> candidates,
-    {int maxParallelQuests = QuestConflictService.maxParallelQuests}
-  ) {
+    List<QuestModel> candidates, {
+    int maxParallelQuests = QuestConflictService.maxParallelQuests,
+  }) {
     final blocked = <int>{};
     for (final candidate in candidates) {
       if (selected.any((s) => s.id == candidate.id)) continue;

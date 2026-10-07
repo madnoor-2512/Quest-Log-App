@@ -51,9 +51,18 @@ class _RpgButtonState extends State<RpgButton>
       duration: const Duration(milliseconds: 300),
     );
     _scaleAnim = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 0.90), weight: 35),
-      TweenSequenceItem(tween: Tween<double>(begin: 0.90, end: 1.08), weight: 35),
-      TweenSequenceItem(tween: Tween<double>(begin: 1.08, end: 1.0), weight: 30),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 0.90),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 0.90, end: 1.08),
+        weight: 35,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.08, end: 1.0),
+        weight: 30,
+      ),
     ]).animate(CurvedAnimation(parent: _bounceCtrl, curve: Curves.easeOut));
   }
 
@@ -79,7 +88,8 @@ class _RpgButtonState extends State<RpgButton>
       transform: Matrix4.translationValues(0, _isPressed ? 2.0 : 0.0, 0),
       width: widget.width,
       height: widget.height,
-      padding: widget.padding ??
+      padding:
+          widget.padding ??
           const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isDisabled ? Colors.grey.shade400 : widget.backgroundColor,
@@ -92,9 +102,7 @@ class _RpgButtonState extends State<RpgButton>
             ? []
             : [
                 BoxShadow(
-                  color: isDisabled
-                      ? Colors.grey.shade700
-                      : widget.borderColor,
+                  color: isDisabled ? Colors.grey.shade700 : widget.borderColor,
                   offset: const Offset(0, 2),
                   blurRadius: 0,
                 ),
@@ -115,8 +123,11 @@ class _RpgButtonState extends State<RpgButton>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (widget.icon != null) ...[
-                  Icon(widget.icon,
-                      color: widget.textColor, size: widget.fontSize + 2),
+                  Icon(
+                    widget.icon,
+                    color: widget.textColor,
+                    size: widget.fontSize + 2,
+                  ),
                   const SizedBox(width: 8),
                 ],
                 Text(

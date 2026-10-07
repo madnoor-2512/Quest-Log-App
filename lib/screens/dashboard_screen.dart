@@ -11,6 +11,7 @@ import '../providers/core_providers.dart';
 import '../providers/focus_providers.dart';
 import '../providers/quest_providers.dart';
 import '../providers/user_provider.dart';
+import '../services/audio_feedback_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/level_up_overlay.dart';
 import '../widgets/profile_avatar.dart';
@@ -239,6 +240,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentBottomNav,
         onDestinationSelected: (i) {
+          ref.read(audioFeedbackServiceProvider).playButtonClick();
           // ปุ่ม (+) ตรงกลาง — เปิดป๊อปอัปเลือกประเภทภารกิจแทนการสลับแท็บ
           // ค้างไว้ เพราะ "สร้างเควสต์" เป็นการกระทำครั้งเดียว ไม่ใช่หน้า
           // ที่ควรอยู่ใน bottom navigation
@@ -1546,6 +1548,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // เหลือแค่เส้นทางเช็กอินของ Daily Habit เท่านั้น
 
   void _showQuestDetailsBottomSheet(QuestModel quest) {
+    ref.read(audioFeedbackServiceProvider).playButtonClick();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1560,6 +1563,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       final result = await ref
           .read(questActionsProvider.notifier)
           .checkInHabit(quest.id!);
+      ref.read(audioFeedbackServiceProvider).playQuestSuccess();
       if (!mounted) return;
       final bossRewardMessage = result.isFinalBoss
           ? ' 👑 บอสใหญ่! โบนัส +${result.bossBonusExp} EXP, +${result.bossBonusGold} Gold, +${result.bossBonusGems} 💎'
@@ -1626,7 +1630,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
 
     return GestureDetector(
-      onTap: () => setState(() => _dailyFilterIndex = index),
+      onTap: () {
+        ref.read(audioFeedbackServiceProvider).playButtonClick();
+        setState(() => _dailyFilterIndex = index);
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
@@ -1676,15 +1683,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 }
 
-class _QuestDetailsSheet extends ConsumerStatefulWidget {
+class QuestDetailsSheet extends ConsumerStatefulWidget {
   final QuestModel quest;
-  const _QuestDetailsSheet({required this.quest});
+  const QuestDetailsSheet({super.key, required this.quest});
 
   @override
-  ConsumerState<_QuestDetailsSheet> createState() => _QuestDetailsSheetState();
+  ConsumerState<QuestDetailsSheet> createState() => _QuestDetailsSheetState();
 }
 
-class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
+typedef _QuestDetailsSheet = QuestDetailsSheet;
+
+class _QuestDetailsSheetState extends ConsumerState<QuestDetailsSheet> {
   int? _checkinCount;
 
   @override
@@ -1694,14 +1703,29 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
   }
 
   Future<void> _loadCheckinCount() async {
-    final db = ref.read(databaseHelperProvider);
-    final count = await db.getHabitCheckinCount(widget.quest.id!);
-    if (mounted) {
-      setState(() => _checkinCount = count);
-    }
+    if (widget.quest.id == null) return;
+    try {
+      final db = ref.read(databaseHelperProvider);
+      final count = await db.getHabitCheckinCount(widget.quest.id!);
+      if (mounted) {
+        setState(() => _checkinCount = count);
+      }
+    } catch (_) {}
   }
 
   void _abandonQuest() async {
+    final questId = widget.quest.id;
+    if (questId != null && ref.read(isQuestFocusingProvider(questId))) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            '🔒 เควสต์นี้กำลังถูกโฟกัสอยู่ โปรดจบเซสชันหรือยอมแพ้ก่อนทำการแก้ไข',
+          ),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
     final isCampaign = widget.quest.isCampaign;
     if (isCampaign) {
       final confirm = await showDialog<bool>(
@@ -1995,67 +2019,144 @@ class _QuestDetailsSheetState extends ConsumerState<_QuestDetailsSheet> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 24),
 
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pop();
-                            if (widget.quest.goalType ==
-                                QuestGoalType.dailyHabit) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => AddQuickQuestScreen(
-                                    questToEdit: widget.quest,
-                                  ),
-                                ),
-                              );
-                            } else if (widget.quest.goalType ==
-                                QuestGoalType.focus) {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => AddFocusQuestScreen(
-                                    questToEdit: widget.quest,
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.edit_rounded, size: 18),
-                          label: const Text('แก้ไขภารกิจ'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            side: const BorderSide(
-                              color: AppColors.border,
-                              width: 2,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            foregroundColor: AppColors.textPrimary,
-                          ),
-                        ),
+                  if (widget.quest.id != null &&
+                      ref.watch(isQuestFocusingProvider(widget.quest.id!))) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 12,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _abandonQuest,
-                          icon: const Icon(Icons.flag_outlined, size: 18),
-                          label: Text(isCampaign ? 'ยอมแพ้' : 'ลบภารกิจ'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            backgroundColor: const Color(0xFFDC2626),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFEF2F2),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFCA5A5)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(
+                            Icons.lock_rounded,
+                            color: Color(0xFFDC2626),
+                            size: 20,
+                          ),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              '🔒 เควสต์นี้กำลังถูกโฟกัสอยู่ โปรดจบเซสชันหรือยอมแพ้ก่อนทำการแก้ไข',
+                              style: TextStyle(
+                                color: Color(0xFFDC2626),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                height: 1.3,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
+                  ],
+
+                  Builder(
+                    builder: (context) {
+                      final isCurrentlyFocused =
+                          widget.quest.id != null &&
+                          ref.watch(isQuestFocusingProvider(widget.quest.id!));
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: Tooltip(
+                              message: isCurrentlyFocused
+                                  ? '🔒 เควสต์นี้กำลังถูกโฟกัสอยู่ โปรดจบเซสชันหรือยอมแพ้ก่อนทำการแก้ไข'
+                                  : '',
+                              child: OutlinedButton.icon(
+                                onPressed: isCurrentlyFocused
+                                    ? null
+                                    : () {
+                                        Navigator.of(context).pop();
+                                        if (widget.quest.goalType ==
+                                            QuestGoalType.dailyHabit) {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  AddQuickQuestScreen(
+                                                    questToEdit: widget.quest,
+                                                  ),
+                                            ),
+                                          );
+                                        } else if (widget.quest.goalType ==
+                                            QuestGoalType.focus) {
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  AddFocusQuestScreen(
+                                                    questToEdit: widget.quest,
+                                                  ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                icon: const Icon(Icons.edit_rounded, size: 18),
+                                label: const Text('แก้ไขภารกิจ'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  side: BorderSide(
+                                    color: isCurrentlyFocused
+                                        ? AppColors.borderLight
+                                        : AppColors.border,
+                                    width: 2,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  foregroundColor: isCurrentlyFocused
+                                      ? AppColors.textMuted
+                                      : AppColors.textPrimary,
+                                  disabledForegroundColor: AppColors.textMuted,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Tooltip(
+                              message: isCurrentlyFocused
+                                  ? '🔒 เควสต์นี้กำลังถูกโฟกัสอยู่ โปรดจบเซสชันหรือยอมแพ้ก่อนทำการแก้ไข'
+                                  : '',
+                              child: ElevatedButton.icon(
+                                onPressed: isCurrentlyFocused
+                                    ? null
+                                    : _abandonQuest,
+                                icon: const Icon(Icons.flag_outlined, size: 18),
+                                label: Text(isCampaign ? 'ยอมแพ้' : 'ลบภารกิจ'),
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  backgroundColor: const Color(0xFFDC2626),
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: const Color(
+                                    0xFFE5E7EB,
+                                  ),
+                                  disabledForegroundColor: const Color(
+                                    0xFF9CA3AF,
+                                  ),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),

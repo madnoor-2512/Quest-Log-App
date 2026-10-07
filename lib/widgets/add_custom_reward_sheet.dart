@@ -160,8 +160,8 @@ class _AddCustomRewardSheetState extends State<AddCustomRewardSheet> {
                         rarity: _impact == CustomRewardImpact.major
                             ? ItemRarity.epic
                             : _impact == CustomRewardImpact.medium
-                                ? ItemRarity.rare
-                                : ItemRarity.common,
+                            ? ItemRarity.rare
+                            : ItemRarity.common,
                         category: 'real_life',
                         impactLevel: _impact,
                         purchaseLimit: _limit,

@@ -130,10 +130,10 @@ extension ItemRarityX on ItemRarity {
 /// ผลจริงที่ไอเทมมีต่อเกม — จำกัดเฉพาะกลไกที่มีอยู่แล้วในแอป (ไม่มีระบบ
 /// HP/พลังงานสมมติขึ้นมาใหม่):
 /// - focusTimeBonusPercent: ของ "อุปกรณ์" (equipment) ที่สวมใส่อยู่ —
-///   ตอนเริ่ม Focus session ใหม่ target_duration จะถูกคูณเพิ่มอัตโนมัติ
+///   ตอนเริ่ม Focus session ใหม่จะเพิ่มเวลาให้ timer ของแต่ละเควสอัตโนมัติ
 /// - parallelQuestSlot: ของ "อุปกรณ์" ที่ปลดล็อกช่อง Concurrent Quest ช่องที่ 3
 /// - extendFocusMinutes: ของ "น้ำยา/เวป" (consumable) ใช้ครั้งเดียว —
-///   บวกเวลาเพิ่มให้ session โฟกัสที่กำลัง active อยู่ตอนนั้นทันที
+///   บวกเวลาเพิ่มให้ timer ของเควสที่ยังทำงานอยู่ทันที
 /// - instantExp / instantGold: ของ consumable ใช้ครั้งเดียว — บวก EXP/Gold
 ///   ให้ user ทันทีตอนกดใช้
 enum ItemEffectType {

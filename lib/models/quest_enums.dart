@@ -104,9 +104,36 @@ extension HabitFrequencyX on HabitFrequency {
 }
 
 /// ประเภทของกิจกรรม ใช้สำหรับตรวจสอบ Conflict ตอนทำ Multi-Quest Focus
-enum ActivityType { physicalHeavy, stillness, audioOnly, mental }
+enum ActivityType { physicalHeavy, stillness, audioOnly, mental, visual }
+
+enum ResourcePool { physical, cognitive, auditory, visual }
+
+extension ResourcePoolX on ResourcePool {
+  String get displayName => switch (this) {
+    ResourcePool.physical => 'ร่างกาย',
+    ResourcePool.cognitive => 'สมอง',
+    ResourcePool.auditory => 'หู',
+    ResourcePool.visual => 'สายตา',
+  };
+}
 
 extension ActivityTypeX on ActivityType {
+  ResourcePool get resourcePool {
+    switch (this) {
+      case ActivityType.physicalHeavy:
+      case ActivityType.stillness:
+        return ResourcePool.physical;
+      case ActivityType.mental:
+        return ResourcePool.cognitive;
+      case ActivityType.audioOnly:
+        return ResourcePool.auditory;
+      case ActivityType.visual:
+        return ResourcePool.visual;
+    }
+  }
+
+  bool get isBackgroundAllowed => this == ActivityType.audioOnly;
+
   String get dbValue {
     switch (this) {
       case ActivityType.physicalHeavy:
@@ -117,6 +144,8 @@ extension ActivityTypeX on ActivityType {
         return 'AUDIO_ONLY';
       case ActivityType.mental:
         return 'MENTAL';
+      case ActivityType.visual:
+        return 'VISUAL';
     }
   }
 
@@ -130,6 +159,8 @@ extension ActivityTypeX on ActivityType {
         return 'Audio Only';
       case ActivityType.mental:
         return 'Mental';
+      case ActivityType.visual:
+        return 'Visual';
     }
   }
 
@@ -143,6 +174,8 @@ extension ActivityTypeX on ActivityType {
         return ActivityType.audioOnly;
       case 'MENTAL':
         return ActivityType.mental;
+      case 'VISUAL':
+        return ActivityType.visual;
       default:
         throw ArgumentError('Unknown ActivityType: $value');
     }

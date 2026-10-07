@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../services/audio_feedback_service.dart';
 import '../theme/app_colors.dart';
 import 'rpg_button.dart';
 
-class LevelUpOverlay extends StatefulWidget {
+class LevelUpOverlay extends ConsumerStatefulWidget {
   final int newLevel;
   final VoidCallback onDismiss;
   final Duration autoDismissDuration;
@@ -17,10 +19,10 @@ class LevelUpOverlay extends StatefulWidget {
   });
 
   @override
-  State<LevelUpOverlay> createState() => _LevelUpOverlayState();
+  ConsumerState<LevelUpOverlay> createState() => _LevelUpOverlayState();
 }
 
-class _LevelUpOverlayState extends State<LevelUpOverlay>
+class _LevelUpOverlayState extends ConsumerState<LevelUpOverlay>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
@@ -31,6 +33,11 @@ class _LevelUpOverlayState extends State<LevelUpOverlay>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(audioFeedbackServiceProvider).playLevelUp();
+      }
+    });
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
@@ -41,10 +48,7 @@ class _LevelUpOverlayState extends State<LevelUpOverlay>
       curve: Curves.elasticOut,
     );
 
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
 
     _controller.forward();
 

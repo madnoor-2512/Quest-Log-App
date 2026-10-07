@@ -8,20 +8,26 @@ void main() {
       final service = const RewardCalculatorService();
       final drop = service.calculateBossDiamondReward(isMiniBoss: true);
 
-      expect(drop, inInclusiveRange(
-        GamificationConfig.miniBossDiamondMin,
-        GamificationConfig.miniBossDiamondMax,
-      ));
+      expect(
+        drop,
+        inInclusiveRange(
+          GamificationConfig.miniBossDiamondMin,
+          GamificationConfig.miniBossDiamondMax,
+        ),
+      );
     });
 
     test('final bosses award a larger diamond bonus in the planned range', () {
       final service = const RewardCalculatorService();
       final drop = service.calculateBossDiamondReward(isFinalBoss: true);
 
-      expect(drop, inInclusiveRange(
-        GamificationConfig.finalBossDiamondMin,
-        GamificationConfig.finalBossDiamondMax,
-      ));
+      expect(
+        drop,
+        inInclusiveRange(
+          GamificationConfig.finalBossDiamondMin,
+          GamificationConfig.finalBossDiamondMax,
+        ),
+      );
     });
   });
 }

@@ -17,7 +17,7 @@ class DatabaseHelper {
   static Database? _database;
 
   static const String dbName = 'quest_log.db';
-  static const int dbVersion = 15;
+  static const int dbVersion = 17;
 
   static const String tableUsers = 'users';
   static const String tableQuests = 'quests';
@@ -236,6 +236,49 @@ class DatabaseHelper {
     if (oldVersion < 15) {
       await _addColumnIfMissing(db, tableUsers, 'avatar_image_base64', 'TEXT');
     }
+    if (oldVersion < 16) {
+      await _addColumnIfMissing(
+        db,
+        tableSessionQuests,
+        'target_duration_seconds',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await db.execute('''
+        UPDATE $tableSessionQuests
+        SET target_duration_seconds = COALESCE(
+          (
+            SELECT CASE
+              WHEN q.estimated_minutes > 0 THEN q.estimated_minutes * 60
+              ELSE fs.target_duration
+            END
+            FROM $tableQuests q
+            INNER JOIN $tableFocusSessions fs
+              ON fs.id = $tableSessionQuests.session_id
+            WHERE q.id = $tableSessionQuests.quest_id
+          ),
+          0
+        )
+        WHERE target_duration_seconds = 0
+      ''');
+    }
+    if (oldVersion < 17) {
+      await _addColumnIfMissing(db, tableSessionQuests, 'started_at', 'TEXT');
+      await _addColumnIfMissing(
+        db,
+        tableSessionQuests,
+        'is_paused',
+        'INTEGER NOT NULL DEFAULT 0',
+      );
+      await _addColumnIfMissing(db, tableSessionQuests, 'paused_at', 'TEXT');
+      await db.execute('''
+        UPDATE $tableSessionQuests
+        SET started_at = (
+          SELECT started_at FROM $tableFocusSessions
+          WHERE id = $tableSessionQuests.session_id
+        )
+        WHERE started_at IS NULL
+      ''');
+    }
   }
 
   Future<void> _addColumnIfMissing(
@@ -329,8 +372,7 @@ class DatabaseHelper {
     batch.execute('''
       CREATE TABLE $tableFocusSessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        started_at TEXT NOT NULL,
-        target_duration INTEGER NOT NULL DEFAULT 0
+        started_at TEXT NOT NULL
       );
     ''');
 
@@ -338,6 +380,10 @@ class DatabaseHelper {
       CREATE TABLE $tableSessionQuests (
         session_id INTEGER NOT NULL,
         quest_id INTEGER NOT NULL,
+        target_duration_seconds INTEGER NOT NULL DEFAULT 0,
+        started_at TEXT,
+        is_paused INTEGER NOT NULL DEFAULT 0,
+        paused_at TEXT,
         PRIMARY KEY (session_id, quest_id),
         FOREIGN KEY (session_id) REFERENCES $tableFocusSessions (id) ON DELETE CASCADE,
         FOREIGN KEY (quest_id) REFERENCES $tableQuests (id) ON DELETE CASCADE
@@ -832,8 +878,7 @@ class DatabaseHelper {
 
   Future<int> startFocusSession({
     required String startedAt,
-    required int targetDuration,
-    required List<int> questIds,
+    required Map<int, int> questDurations,
   }) async {
     final db = await database;
     return await db.transaction<int>((txn) async {
@@ -848,12 +893,14 @@ class DatabaseHelper {
       }
       final sessionId = await txn.insert(tableFocusSessions, {
         'started_at': startedAt,
-        'target_duration': targetDuration,
       });
-      for (final questId in questIds) {
+      for (final entry in questDurations.entries) {
         await txn.insert(tableSessionQuests, {
           'session_id': sessionId,
-          'quest_id': questId,
+          'quest_id': entry.key,
+          'target_duration_seconds': entry.value,
+          'started_at': startedAt,
+          'is_paused': 0,
         });
       }
       return sessionId;
@@ -884,6 +931,72 @@ class DatabaseHelper {
     return maps.map((m) => QuestModel.fromMap(m)).toList();
   }
 
+  Future<
+    List<
+      ({
+        int questId,
+        int targetDurationSeconds,
+        String? startedAt,
+        bool isPaused,
+        String? pausedAt,
+      })
+    >
+  >
+  getFocusSessionQuestDurations(int sessionId) async {
+    final db = await database;
+    final rows = await db.query(
+      tableSessionQuests,
+      columns: [
+        'quest_id',
+        'target_duration_seconds',
+        'started_at',
+        'is_paused',
+        'paused_at',
+      ],
+      where: 'session_id = ?',
+      whereArgs: [sessionId],
+    );
+    return rows
+        .map(
+          (row) => (
+            questId: row['quest_id'] as int,
+            targetDurationSeconds: row['target_duration_seconds'] as int,
+            startedAt: row['started_at'] as String?,
+            isPaused: (row['is_paused'] as int? ?? 0) == 1,
+            pausedAt: row['paused_at'] as String?,
+          ),
+        )
+        .toList();
+  }
+
+  Future<int> pauseFocusSessionQuestTimer(
+    int sessionId,
+    int questId,
+    String pausedAt,
+  ) async {
+    final db = await database;
+    return db.update(
+      tableSessionQuests,
+      {'is_paused': 1, 'paused_at': pausedAt},
+      where: 'session_id = ? AND quest_id = ? AND is_paused = 0',
+      whereArgs: [sessionId, questId],
+    );
+  }
+
+  Future<int> resumeFocusSessionQuestTimer(
+    int sessionId,
+    int questId,
+    String startedAt,
+  ) async {
+    final db = await database;
+    return db.update(
+      tableSessionQuests,
+      {'started_at': startedAt, 'is_paused': 0, 'paused_at': null},
+      where: 'session_id = ? AND quest_id = ? AND is_paused = 1',
+      whereArgs: [sessionId, questId],
+    );
+  }
+
   Future<int> endFocusSession(int sessionId) async {
     final db = await database;
     return await db.delete(
@@ -893,18 +1006,28 @@ class DatabaseHelper {
     );
   }
 
-  /// อัปเดต target_duration ของ session ที่ active อยู่ — ใช้ตอนกด "ใช้"
-  /// ไอเทม consumable ที่ต่อเวลาโฟกัส (extendFocusMinutes)
-  Future<void> updateFocusSessionDuration(
-    int sessionId,
-    int newTargetDurationSeconds,
-  ) async {
+  Future<int> removeQuestFromFocusSession(int sessionId, int questId) async {
     final db = await database;
-    await db.update(
-      tableFocusSessions,
-      {'target_duration': newTargetDurationSeconds},
-      where: 'id = ?',
-      whereArgs: [sessionId],
+    return await db.delete(
+      tableSessionQuests,
+      where: 'session_id = ? AND quest_id = ?',
+      whereArgs: [sessionId, questId],
+    );
+  }
+
+  Future<void> extendFocusSessionQuestTimers(
+    int sessionId,
+    List<int> questIds,
+    int extraSeconds,
+  ) async {
+    if (questIds.isEmpty || extraSeconds <= 0) return;
+    final db = await database;
+    final placeholders = List.filled(questIds.length, '?').join(', ');
+    await db.rawUpdate(
+      'UPDATE $tableSessionQuests '
+      'SET target_duration_seconds = target_duration_seconds + ? '
+      'WHERE session_id = ? AND quest_id IN ($placeholders)',
+      [extraSeconds, sessionId, ...questIds],
     );
   }
 

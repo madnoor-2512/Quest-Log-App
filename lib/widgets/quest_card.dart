@@ -11,6 +11,8 @@ class QuestCard extends StatefulWidget {
   final bool isSelected; // for Focus Screen checklist mode
   final bool isDisabled; // for Focus Screen conflict mode
   final bool checklistMode;
+  final double? progress;
+  final String? progressLabel;
 
   const QuestCard({
     super.key,
@@ -20,6 +22,8 @@ class QuestCard extends StatefulWidget {
     this.isSelected = false,
     this.isDisabled = false,
     this.checklistMode = false,
+    this.progress,
+    this.progressLabel,
   });
 
   @override
@@ -31,6 +35,9 @@ class _QuestCardState extends State<QuestCard>
   late AnimationController _completeCtrl;
   late Animation<double> _fadeAnim;
   bool _completing = false;
+
+  bool get _isStillnessQuest =>
+      widget.quest.activityType == ActivityType.stillness;
 
   @override
   void initState() {
@@ -49,15 +56,6 @@ class _QuestCardState extends State<QuestCard>
   void dispose() {
     _completeCtrl.dispose();
     super.dispose();
-  }
-
-  bool get _isMindfulnessQuest {
-    final titleLower = widget.quest.title.toLowerCase();
-    return widget.quest.activityType == ActivityType.stillness ||
-        titleLower.contains('สมาธิ') ||
-        titleLower.contains('หายใจ') ||
-        titleLower.contains('mindful') ||
-        titleLower.contains('meditat');
   }
 
   void _handleComplete() async {
@@ -79,7 +77,6 @@ class _QuestCardState extends State<QuestCard>
   }
 
   IconData get _activityIcon {
-    if (_isMindfulnessQuest) return Icons.self_improvement_rounded;
     switch (widget.quest.activityType) {
       case ActivityType.physicalHeavy:
         return Icons.fitness_center_rounded;
@@ -89,6 +86,8 @@ class _QuestCardState extends State<QuestCard>
         return Icons.headphones_rounded;
       case ActivityType.mental:
         return Icons.psychology_rounded;
+      case ActivityType.visual:
+        return Icons.menu_book_rounded;
     }
   }
 
@@ -129,223 +128,287 @@ class _QuestCardState extends State<QuestCard>
               ),
             ],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(14),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Header row
-                Row(
-                  children: [
-                    // Category color dot + activity icon
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: isDone
-                            ? const Color(0xFFDCFCE7)
-                            : _categoryColor.withAlpha(30),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isDone
-                              ? const Color(0xFF16A34A)
-                              : _categoryColor,
-                          width: 2,
-                        ),
-                      ),
-                      child: Icon(
-                        isDone ? Icons.check_circle_rounded : _activityIcon,
-                        size: 18,
-                        color: isDone
-                            ? const Color(0xFF16A34A)
-                            : _categoryColor,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Title + category chip
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Header row
+                      Row(
                         children: [
-                          Text(
-                            widget.quest.title,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  decoration: isDone
-                                      ? TextDecoration.lineThrough
-                                      : null,
-                                  color: isDone
-                                      ? AppColors.textMuted
-                                      : AppColors.textPrimary,
-                                ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              _CategoryChip(
-                                category: widget.quest.category,
+                          // Category color dot + activity icon
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: isDone
+                                  ? const Color(0xFFDCFCE7)
+                                  : _categoryColor.withAlpha(30),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
                                 color: isDone
                                     ? const Color(0xFF16A34A)
                                     : _categoryColor,
+                                width: 2,
                               ),
+                            ),
+                            child: Icon(
+                              isDone
+                                  ? Icons.check_circle_rounded
+                                  : _activityIcon,
+                              size: 18,
+                              color: isDone
+                                  ? const Color(0xFF16A34A)
+                                  : _categoryColor,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          // Title + category chip
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  widget.quest.title,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        decoration: isDone
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                        color: isDone
+                                            ? AppColors.textMuted
+                                            : AppColors.textPrimary,
+                                      ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Row(
+                                  children: [
+                                    _CategoryChip(
+                                      category: widget.quest.category,
+                                      color: isDone
+                                          ? const Color(0xFF16A34A)
+                                          : _categoryColor,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    if (widget.checklistMode)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surface,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          border: Border.all(
+                                            color: AppColors.borderLight,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${widget.quest.activityType.resourcePool.displayName}'
+                                          '${widget.quest.activityType.isBackgroundAllowed ? ' · พื้นหลัง' : ''}',
+                                          style: const TextStyle(
+                                            color: AppColors.textMuted,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    if (widget.checklistMode)
+                                      const SizedBox(width: 6),
+                                    _DifficultyStars(
+                                      difficulty: widget.quest.difficulty,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Checklist checkbox
+                          if (widget.checklistMode)
+                            Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: widget.isSelected
+                                    ? AppColors.primary
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: widget.isSelected
+                                      ? AppColors.primary
+                                      : AppColors.border,
+                                  width: 2,
+                                ),
+                              ),
+                              child: widget.isSelected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                        ],
+                      ),
+                      // Description
+                      if (widget.quest.description != null &&
+                          widget.quest.description!.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          widget.quest.description!,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      // Rewards + buttons row
+                      Row(
+                        children: [
+                          if (isDone) ...[
+                            // เด้งตัวเลขรางวัลสำหรับเควสต์ที่เสร็จแล้ว
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF86EFAC),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star_rounded,
+                                    size: 14,
+                                    color: Color(0xFF15803D),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    '+${widget.quest.awardedExp ?? widget.quest.expReward} EXP • +${widget.quest.awardedGold ?? widget.quest.goldReward} Gold',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: Color(0xFF15803D),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Spacer(),
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF16A34A),
+                                  size: 20,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'สำเร็จแล้ว',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ] else ...[
+                            // EXP reward
+                            _RewardChip(
+                              icon: Icons.star_rounded,
+                              label: '+${widget.quest.expReward} EXP',
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            _RewardChip(
+                              icon: Icons.monetization_on_rounded,
+                              label: '+${widget.quest.goldReward} G',
+                              color: const Color(0xFFB45309),
+                            ),
+                            if (widget.quest.estimatedMinutes > 0) ...[
                               const SizedBox(width: 6),
-                              _DifficultyStars(
-                                difficulty: widget.quest.difficulty,
+                              _RewardChip(
+                                icon: Icons.timer_outlined,
+                                label: '${widget.quest.estimatedMinutes}m',
+                                color: AppColors.textSecondary,
                               ),
                             ],
-                          ),
+                            const Spacer(),
+                            // Action buttons
+                            if (!widget.checklistMode) ...[
+                              // เควสต์ที่มีเวลา (ทุกเควสต์โฟกัส) มีปุ่มเดียว:
+                              // "โฟกัส" (หรือ "ฝึก" สำหรับกิจกรรมสงบนิ่ง) ที่พา
+                              // ไปหน้าโฟกัสเสมอ — จบเควสต์โฟกัสตรงจากปุ่มนี้ไม่ได้
+                              if (widget.quest.estimatedMinutes > 0 &&
+                                  widget.onStartFocus != null) ...[
+                                _SmallButton(
+                                  label: _isStillnessQuest ? 'ฝึก' : 'โฟกัส',
+                                  icon: _isStillnessQuest
+                                      ? Icons.self_improvement_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: _isStillnessQuest
+                                      ? const Color(
+                                          0xFF7C3AED,
+                                        ) // Calming purple
+                                      : const Color(0xFFEA580C), // Brick orange
+                                  onTap: widget.onStartFocus,
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                              // ปุ่ม "เสร็จ" (จบตรง) มีเฉพาะเควสต์ทันใจ (Daily
+                              // Habit) ที่เช็กอินได้จากหน้าหลักเท่านั้น
+                              if (widget.onComplete != null)
+                                _SmallButton(
+                                  label: 'แตะเช็กอิน',
+                                  icon: Icons.check_circle_outline_rounded,
+                                  color: AppColors.primaryDark,
+                                  onTap: _handleComplete,
+                                ),
+                            ],
+                          ],
                         ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (widget.progress != null) ...[
+                  if (widget.progressLabel != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 3),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          widget.progressLabel!,
+                          style: const TextStyle(
+                            color: AppColors.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
-                    // Checklist checkbox
-                    if (widget.checklistMode)
-                      Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: widget.isSelected
-                              ? AppColors.primary
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: widget.isSelected
-                                ? AppColors.primary
-                                : AppColors.border,
-                            width: 2,
-                          ),
-                        ),
-                        child: widget.isSelected
-                            ? const Icon(
-                                Icons.check_rounded,
-                                size: 16,
-                                color: Colors.white,
-                              )
-                            : null,
-                      ),
-                  ],
-                ),
-                // Description
-                if (widget.quest.description != null &&
-                    widget.quest.description!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    widget.quest.description!,
-                    style: Theme.of(context).textTheme.bodySmall,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  LinearProgressIndicator(
+                    value: widget.progress!.clamp(0.0, 1.0),
+                    minHeight: 4,
+                    backgroundColor: AppColors.borderLight,
+                    color: AppColors.secondary,
                   ),
                 ],
-                const SizedBox(height: 10),
-                // Rewards + buttons row
-                Row(
-                  children: [
-                    if (isDone) ...[
-                      // เด้งตัวเลขรางวัลสำหรับเควสต์ที่เสร็จแล้ว
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDCFCE7),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: const Color(0xFF86EFAC)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.star_rounded,
-                              size: 14,
-                              color: Color(0xFF15803D),
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '+${widget.quest.awardedExp ?? widget.quest.expReward} EXP • +${widget.quest.awardedGold ?? widget.quest.goldReward} Gold',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF15803D),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Spacer(),
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.check_circle_rounded,
-                            color: Color(0xFF16A34A),
-                            size: 20,
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'สำเร็จแล้ว',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF16A34A),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ] else ...[
-                      // EXP reward
-                      _RewardChip(
-                        icon: Icons.star_rounded,
-                        label: '+${widget.quest.expReward} EXP',
-                        color: AppColors.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      _RewardChip(
-                        icon: Icons.monetization_on_rounded,
-                        label: '+${widget.quest.goldReward} G',
-                        color: const Color(0xFFB45309),
-                      ),
-                      if (widget.quest.estimatedMinutes > 0) ...[
-                        const SizedBox(width: 6),
-                        _RewardChip(
-                          icon: Icons.timer_outlined,
-                          label: '${widget.quest.estimatedMinutes}m',
-                          color: AppColors.textSecondary,
-                        ),
-                      ],
-                      const Spacer(),
-                      // Action buttons
-                      if (!widget.checklistMode) ...[
-                        // เควสต์ที่มีเวลา (ทุกเควสต์โฟกัส) มีปุ่มเดียว:
-                        // "โฟกัส" (หรือ "ฝึก" สำหรับกิจกรรมสงบนิ่ง) ที่พา
-                        // ไปหน้าโฟกัสเสมอ — จบเควสต์โฟกัสตรงจากปุ่มนี้ไม่ได้
-                        if (widget.quest.estimatedMinutes > 0 &&
-                            widget.onStartFocus != null) ...[
-                          _SmallButton(
-                          label: _isMindfulnessQuest ? 'ฝึก' : 'โฟกัส',
-                            icon: _isMindfulnessQuest
-                                ? Icons.self_improvement_rounded
-                                : Icons.play_arrow_rounded,
-                            color: _isMindfulnessQuest
-                                ? const Color(0xFF7C3AED) // Calming purple
-                                : const Color(0xFFEA580C), // Brick orange
-                            onTap: widget.onStartFocus,
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        // ปุ่ม "เสร็จ" (จบตรง) มีเฉพาะเควสต์ทันใจ (Daily
-                        // Habit) ที่เช็กอินได้จากหน้าหลักเท่านั้น
-                        if (widget.onComplete != null)
-                          _SmallButton(
-                            label: 'แตะเช็กอิน',
-                            icon: Icons.check_circle_outline_rounded,
-                            color: AppColors.primaryDark,
-                            onTap: _handleComplete,
-                          ),
-                      ],
-                    ],
-                  ],
-                ),
               ],
             ),
           ),
@@ -471,7 +534,13 @@ class _SmallButtonState extends State<_SmallButton> {
           border: Border.all(color: AppColors.border, width: 1.5),
           boxShadow: _pressed
               ? []
-              : [BoxShadow(color: widget.color.withAlpha(60), blurRadius: 4, offset: const Offset(0, 2))],
+              : [
+                  BoxShadow(
+                    color: widget.color.withAlpha(60),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
