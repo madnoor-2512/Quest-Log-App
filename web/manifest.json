@@ -1,11 +1,11 @@
 {
-    "name": "quest_log",
-    "short_name": "quest_log",
+    "name": "QUEST LOG",
+    "short_name": "QUEST LOG",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#164B20",
+    "theme_color": "#164B20",
+    "description": "QUEST LOG",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
